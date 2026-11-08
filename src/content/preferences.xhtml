@@ -265,6 +265,15 @@
         </menupopup>
       </menulist>
     </hbox>
+
+    <html:p class="zst-pref-note">
+      翻译缓存只保存在内存中，不写入磁盘；退出 Zotero 时会自动清空。也可以点击下方按钮立即释放当前会话的缓存。
+    </html:p>
+    <button
+      id="zst-clear-cache"
+      label="立即清空翻译缓存"
+      oncommand="Zotero.ZoteroSelectionTranslator.clearTranslationCache()"
+    />
   </groupbox>
 
   <groupbox>

@@ -76,6 +76,15 @@ async function onMainWindowUnload({ window }, reason) {
 
 function shutdown({ id, version, rootURI }, reason) {
   if (reason === APP_SHUTDOWN) {
+    // Zotero is exiting. Drop the in-memory translation cache explicitly;
+    // the process would release it anyway, but this also covers reloads and
+    // makes the session-only cache contract clear.
+    try {
+      Zotero.ZoteroSelectionTranslator?.clearTranslationCache?.();
+    }
+    catch (e) {
+      Zotero.logError(e);
+    }
     return;
   }
 

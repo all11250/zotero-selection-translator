@@ -23,7 +23,7 @@
 - **置顶接管划词**：置顶后，后续划词不再弹出新的翻译卡片，而是直接更新置顶卡片中的原文和译文；关闭置顶卡片后恢复选区弹窗。
 - **拖动与缩放**：置顶后按住卡片顶部空白处即可拖动；四条边框和四个角都可调整宽高，拖动/缩放使用 `requestAnimationFrame` 节流。
 - **学术字体**：可让译文中文使用宋体、英文/数字使用 Times New Roman（默认开启）。
-- **缓存与回退**：相同文本/语言/引擎的译文在会话内缓存；DeepL 免费接口失败时可自动尝试备用免费引擎。
+- **缓存与回退**：相同文本/语言/引擎的译文仅在内存中缓存，退出 Zotero 自动清空，不占用磁盘空间；设置页可立即手动清空。DeepL 免费接口失败时可自动尝试备用免费引擎。
 
 ## 安装
 
@@ -50,7 +50,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build.ps1
 构建产物：
 
 ```text
-dist/zotero-selection-translator-1.5.0.xpi
+dist/zotero-selection-translator-1.6.0.xpi
 dist/zotero-selection-translator.xpi
 dist/SHA256SUMS.txt
 ```
@@ -80,6 +80,12 @@ powershell -ExecutionPolicy Bypass -File scripts/validate.ps1
 - **设置面板**：基本设置 → 译文字号（8–48 px，可直接输入任意值）、译文行间距（1.0–3.0 倍，支持 0.05 步进）。
 - **翻译面板**：点击面板顶部「Aa」按钮，展开字号/行距输入框，立即作用于当前译文；修改会保存为后续默认值。
 - **学术字体**：设置中勾选「译文中文使用宋体，英文/数字使用 Times New Roman」后，译文会使用 `"Times New Roman", "SimSun", "宋体", ...` 字体栈：英文/数字优先 TNR，中文字符回退到宋体。该选项默认开启。
+
+### 翻译缓存
+
+- 相同文本、源/目标语言和引擎的译文只在当前 Zotero 会话的内存中缓存。
+- 不写入磁盘、不写 `storage`，退出 Zotero 或禁用插件时自动清空。
+- 设置页提供「立即清空翻译缓存」按钮，可随时手动释放。
 
 ### 原文预览 / 置顶 / 拖动 / 缩放
 

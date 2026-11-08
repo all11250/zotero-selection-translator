@@ -81,10 +81,13 @@ assert.ok(translate.includes("beginDrag"));
 assert.ok(translate.includes("requestAnimationFrame"));
 assert.ok(translate.includes("getActivePin"));
 assert.ok(translate.includes("updatePinnedTranslation"));
+assert.ok(translate.includes("clearTranslationCache"));
+assert.ok(bootstrap.includes("clearTranslationCache"));
 assert.ok(translate.includes('["n", "s", "e", "w", "nw", "ne", "sw", "se"]'));
 assert.ok(css.includes(".zst-resize-n"));
 
 const prefsXhtml = read("src/content/preferences.xhtml");
+assert.ok(prefsXhtml.includes("zst-clear-cache"));
 for (const key of [
   "extensions.zotero.zoteroSelectionTranslator.engine",
   "extensions.zotero.zoteroSelectionTranslator.annotationComment",

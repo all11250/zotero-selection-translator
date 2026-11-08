@@ -204,11 +204,22 @@ var ZoteroSelectionTranslator = (function () {
         this.onMainWindowUnload(win);
       }
       this.mainWindows.clear();
-      this.cache.clear();
-      this.inflight.clear();
+      this.clearTranslationCache();
       this.annotationKeys.clear();
       this.activePins.clear();
       this.startupDone = false;
+    }
+
+    /**
+     * Drop the in-memory translation cache and any in-flight dedupe entries.
+     * There is no disk cache; this is also called on Zotero shutdown so the
+     * session data is released explicitly.
+     */
+    clearTranslationCache() {
+      const count = this.cache.size;
+      this.cache.clear();
+      this.inflight.clear();
+      return count;
     }
 
     registerPreferencePane() {
