@@ -1,0 +1,101 @@
+/* Selection Translator preferences pane. */
+
+#zotero-selection-translator-prefpane {
+  padding: 6px 4px 18px;
+}
+
+#zotero-selection-translator-prefpane groupbox {
+  margin-bottom: 14px;
+}
+
+#zotero-selection-translator-prefpane h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+#zotero-selection-translator-prefpane h3,
+#zotero-selection-translator-prefpane .zst-pref-subhead {
+  margin: 12px 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.zst-pref-note {
+  max-width: 760px;
+  margin: 2px 0 8px;
+  color: var(--fill-secondary, #666);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.zst-pref-row {
+  margin: 4px 0;
+  align-items: center;
+}
+
+.zst-pref-row > * + * {
+  margin-inline-start: 8px;
+}
+
+.zst-pref-row > label {
+  min-width: 0;
+  color: var(--fill-primary, #222);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.zst-pref-row > label:first-child {
+  min-width: 170px;
+}
+
+.zst-pref-row > input {
+  flex: 0 0 auto;
+}
+
+.zst-pref-row > menulist {
+  flex: 0 0 auto;
+}
+
+.zst-pref-input {
+  width: 430px;
+  max-width: 60vw;
+}
+
+.zst-pref-number {
+  width: 86px;
+}
+
+.zst-pref-small {
+  width: 104px;
+}
+
+.zst-pref-textarea {
+  width: 560px;
+  max-width: 64vw;
+  min-height: 64px;
+  resize: vertical;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.zst-pref-secret {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+#zotero-selection-translator-prefpane checkbox {
+  margin: 3px 0;
+}
+
+#zotero-selection-translator-prefpane menulist {
+  min-width: 265px;
+  max-width: 360px;
+}
+
+#zotero-selection-translator-prefpane hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--color-panedivider, rgba(0, 0, 0, 0.12));
+}

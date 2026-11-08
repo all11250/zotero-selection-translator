@@ -1,0 +1,661 @@
+<vbox
+  id="zotero-selection-translator-prefpane"
+  class="zst-prefpane"
+  flex="1"
+>
+  <groupbox>
+    <label><html:h2>基本设置</html:h2></label>
+    <html:p class="zst-pref-note">
+      在 PDF 阅读器中选中文字后，翻译面板会出现在选区下方。默认使用 DeepL 免费网页版，无需 Key。
+      可在面板顶部的下拉框中临时切换引擎。
+    </html:p>
+
+    <checkbox
+      id="zst-enabled"
+      label="启用划词翻译"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.enabled"
+    />
+    <checkbox
+      id="zst-auto-translate"
+      label="选中文字后立即自动翻译"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.autoTranslate"
+    />
+    <checkbox
+      id="zst-show-source"
+      label="在翻译结果上方显示原文"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.showSource"
+    />
+    <checkbox
+      id="zst-show-toolbar"
+      label="在阅读器工具栏显示“译”开关"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.showToolbarButton"
+    />
+    <checkbox
+      id="zst-show-sidebar"
+      label="在侧边栏标注标题旁显示“译”按钮"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.showSidebarButton"
+    />
+
+    <html:hr />
+
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-engine">默认翻译引擎</label>
+      <menulist
+        id="zst-engine"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.engine"
+      >
+        <menupopup>
+          <menuitem label="DeepL 免费网页版（无需 Key）" value="deepl-free" />
+          <menuitem label="DeepL API（官方 Key）" value="deepl-api" />
+          <menuitem label="Google 翻译（免费）" value="google-free" />
+          <menuitem label="MyMemory（免费）" value="mymemory" />
+          <menuitem label="百度翻译（AppID + 密钥）" value="baidu" />
+          <menuitem label="Microsoft Translator（Azure Key）" value="azure" />
+          <menuitem label="LibreTranslate（自建/公共实例）" value="libretranslate" />
+          <menuitem label="AI · OpenAI 兼容接口" value="ai-openai" />
+          <menuitem label="AI · DeepSeek" value="ai-deepseek" />
+          <menuitem label="AI · Anthropic Claude" value="ai-anthropic" />
+          <menuitem label="AI · Google Gemini" value="ai-gemini" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-source-language">源语言</label>
+      <menulist
+        id="zst-source-language"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.sourceLanguage"
+      >
+        <menupopup>
+          <menuitem label="自动检测" value="auto" />
+          <menuitem label="简体中文" value="zh-CN" />
+          <menuitem label="繁體中文" value="zh-TW" />
+          <menuitem label="English" value="en" />
+          <menuitem label="日本語" value="ja" />
+          <menuitem label="한국어" value="ko" />
+          <menuitem label="Français" value="fr" />
+          <menuitem label="Deutsch" value="de" />
+          <menuitem label="Español" value="es" />
+          <menuitem label="Русский" value="ru" />
+          <menuitem label="Português" value="pt" />
+          <menuitem label="Italiano" value="it" />
+          <menuitem label="Nederlands" value="nl" />
+          <menuitem label="Polski" value="pl" />
+          <menuitem label="Türkçe" value="tr" />
+          <menuitem label="العربية" value="ar" />
+          <menuitem label="हिन्दी" value="hi" />
+          <menuitem label="ไทย" value="th" />
+          <menuitem label="Tiếng Việt" value="vi" />
+          <menuitem label="Bahasa Indonesia" value="id" />
+          <menuitem label="Українська" value="uk" />
+          <menuitem label="Čeština" value="cs" />
+          <menuitem label="Svenska" value="sv" />
+          <menuitem label="Dansk" value="da" />
+          <menuitem label="Suomi" value="fi" />
+          <menuitem label="Norsk" value="no" />
+          <menuitem label="Ελληνικά" value="el" />
+          <menuitem label="עברית" value="he" />
+          <menuitem label="Magyar" value="hu" />
+          <menuitem label="Română" value="ro" />
+          <menuitem label="Български" value="bg" />
+          <menuitem label="Slovenčina" value="sk" />
+          <menuitem label="Slovenščina" value="sl" />
+          <menuitem label="Eesti" value="et" />
+          <menuitem label="Latviešu" value="lv" />
+          <menuitem label="Lietuvių" value="lt" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-target-language">目标语言</label>
+      <menulist
+        id="zst-target-language"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.targetLanguage"
+      >
+        <menupopup>
+          <menuitem label="简体中文" value="zh-CN" />
+          <menuitem label="繁體中文" value="zh-TW" />
+          <menuitem label="English" value="en" />
+          <menuitem label="日本語" value="ja" />
+          <menuitem label="한국어" value="ko" />
+          <menuitem label="Français" value="fr" />
+          <menuitem label="Deutsch" value="de" />
+          <menuitem label="Español" value="es" />
+          <menuitem label="Русский" value="ru" />
+          <menuitem label="Português" value="pt" />
+          <menuitem label="Italiano" value="it" />
+          <menuitem label="Nederlands" value="nl" />
+          <menuitem label="Polski" value="pl" />
+          <menuitem label="Türkçe" value="tr" />
+          <menuitem label="العربية" value="ar" />
+          <menuitem label="हिन्दी" value="hi" />
+          <menuitem label="ไทย" value="th" />
+          <menuitem label="Tiếng Việt" value="vi" />
+          <menuitem label="Bahasa Indonesia" value="id" />
+          <menuitem label="Українська" value="uk" />
+          <menuitem label="Čeština" value="cs" />
+          <menuitem label="Svenska" value="sv" />
+          <menuitem label="Dansk" value="da" />
+          <menuitem label="Suomi" value="fi" />
+          <menuitem label="Norsk" value="no" />
+          <menuitem label="Ελληνικά" value="el" />
+          <menuitem label="עברית" value="he" />
+          <menuitem label="Magyar" value="hu" />
+          <menuitem label="Română" value="ro" />
+          <menuitem label="Български" value="bg" />
+          <menuitem label="Slovenčina" value="sk" />
+          <menuitem label="Slovenščina" value="sl" />
+          <menuitem label="Eesti" value="et" />
+          <menuitem label="Latviešu" value="lv" />
+          <menuitem label="Lietuvių" value="lt" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-annotation-type">默认标注方式</label>
+      <menulist
+        id="zst-annotation-type"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.annotationType"
+      >
+        <menupopup>
+          <menuitem label="高亮" value="highlight" />
+          <menuitem label="下划线" value="underline" />
+        </menupopup>
+      </menulist>
+      <label control="zst-annotation-color">默认颜色</label>
+      <menulist
+        id="zst-annotation-color"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.annotationColor"
+      >
+        <menupopup>
+          <menuitem label="黄色" value="#ffd400" />
+          <menuitem label="红色" value="#ff6666" />
+          <menuitem label="绿色" value="#5fb236" />
+          <menuitem label="蓝色" value="#2ea8e5" />
+          <menuitem label="紫色" value="#a28ae5" />
+          <menuitem label="品红" value="#e56eee" />
+          <menuitem label="橙色" value="#f19837" />
+          <menuitem label="灰色" value="#aaaaaa" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <checkbox
+      id="zst-annotation-comment"
+      label="点击高亮/划线时，把译文写入标注评论（可在面板中临时取消）"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.annotationComment"
+    />
+
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-popup-width">面板宽度（px）</label>
+      <html:input
+        id="zst-popup-width"
+        class="zst-pref-number"
+        type="number"
+        min="300"
+        max="620"
+        step="10"
+        preference="extensions.zotero.zoteroSelectionTranslator.popupWidth"
+      />
+      <label control="zst-font-size">译文字号（px）</label>
+      <html:input
+        id="zst-font-size"
+        class="zst-pref-number"
+        type="number"
+        min="8"
+        max="48"
+        step="1"
+        placeholder="8–48"
+        preference="extensions.zotero.zoteroSelectionTranslator.fontSize"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-line-height">译文行间距（倍）</label>
+      <html:input
+        id="zst-line-height"
+        class="zst-pref-number"
+        type="number"
+        min="1"
+        max="3"
+        step="0.05"
+        placeholder="1.0–3.0"
+        preference="extensions.zotero.zoteroSelectionTranslator.lineHeight"
+      />
+    </hbox>
+    <html:p class="zst-pref-note">
+      字号支持 8–48 px 的自定义输入，行间距支持 1.0–3.0 倍。也可以在翻译面板顶部点击
+      <html:strong>Aa</html:strong> 临时调节当前译文。
+    </html:p>
+    <checkbox
+      id="zst-serif-font"
+      label="译文中文使用宋体，英文/数字使用 Times New Roman"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.serifResultFont"
+    />
+
+    <hbox class="zst-pref-row" align="center">
+      <checkbox
+        id="zst-fallback-enabled"
+        label="免费引擎失败时自动尝试备用引擎"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.fallbackEnabled"
+      />
+      <menulist
+        id="zst-fallback-engine"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.fallbackEngine"
+      >
+        <menupopup>
+          <menuitem label="MyMemory" value="mymemory" />
+          <menuitem label="Google 翻译" value="google-free" />
+          <menuitem label="DeepL 免费网页版" value="deepl-free" />
+        </menupopup>
+      </menulist>
+    </hbox>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>DeepL</html:h2></label>
+    <html:p class="zst-pref-note">
+      默认的“DeepL 免费网页版”调用 deepl.com 网页端使用的匿名接口，不需要 API Key，但属于非官方接口，
+      可能限流或随 DeepL 更新失效。需要稳定服务时，请申请 DeepL API Free Key 并选择 “DeepL API”。
+      在 <html:a href="https://www.deepl.com/zh/pro-api">deepl.com/pro-api</html:a> 注册。
+    </html:p>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-deepl-key">DeepL API Key</label>
+      <html:input
+        id="zst-deepl-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        placeholder="xxxxxx:fx（Free）或 xxxxxx（Pro）"
+        preference="extensions.zotero.zoteroSelectionTranslator.deeplApiKey"
+      />
+    </hbox>
+    <html:p class="zst-pref-note">
+      可选：在 Key 后加 <html:code>#glossary_id</html:code> 使用术语表。
+    </html:p>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-deepl-version">网页版版本</label>
+      <html:input
+        id="zst-deepl-version"
+        class="zst-pref-small"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.deeplWebVersion"
+      />
+      <label control="zst-deepl-build">构建号</label>
+      <html:input
+        id="zst-deepl-build"
+        class="zst-pref-small"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.deeplWebBuild"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-deepl-os">OS 版本</label>
+      <html:input
+        id="zst-deepl-os"
+        class="zst-pref-small"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.deeplWebOsVersion"
+      />
+    </hbox>
+    <html:p class="zst-pref-note">
+      这三项用于维持 DeepL 网页版客户端指纹。只有接口因版本过期返回 403 时才需要调整，通常无需修改。
+    </html:p>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>其他引擎</html:h2></label>
+    <html:p class="zst-pref-note">
+      以下字段按需填写。免费接口可能受网络、地区或每日额度限制。
+    </html:p>
+
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-google-endpoint">Google 接口地址</label>
+      <html:input
+        id="zst-google-endpoint"
+        class="zst-pref-input"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.googleEndpoint"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-mymemory-email">MyMemory 邮箱（可选）</label>
+      <html:input
+        id="zst-mymemory-email"
+        class="zst-pref-input"
+        type="email"
+        placeholder="用于提高免费额度，可留空"
+        preference="extensions.zotero.zoteroSelectionTranslator.mymemoryEmail"
+      />
+    </hbox>
+
+    <html:hr />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-baidu-appid">百度 AppID</label>
+      <html:input
+        id="zst-baidu-appid"
+        class="zst-pref-input"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.baiduAppId"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-baidu-key">百度密钥</label>
+      <html:input
+        id="zst-baidu-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        preference="extensions.zotero.zoteroSelectionTranslator.baiduKey"
+      />
+    </hbox>
+
+    <html:hr />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-azure-key">Microsoft Key</label>
+      <html:input
+        id="zst-azure-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        preference="extensions.zotero.zoteroSelectionTranslator.azureKey"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-azure-region">Microsoft Region</label>
+      <html:input
+        id="zst-azure-region"
+        class="zst-pref-input"
+        type="text"
+        placeholder="例如 eastasia；global 可留空"
+        preference="extensions.zotero.zoteroSelectionTranslator.azureRegion"
+      />
+    </hbox>
+
+    <html:hr />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-libre-endpoint">LibreTranslate 地址</label>
+      <html:input
+        id="zst-libre-endpoint"
+        class="zst-pref-input"
+        type="text"
+        placeholder="https://libretranslate.com 或自建地址"
+        preference="extensions.zotero.zoteroSelectionTranslator.libretranslateEndpoint"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-libre-key">LibreTranslate Key</label>
+      <html:input
+        id="zst-libre-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        placeholder="公共实例通常需要；自建可留空"
+        preference="extensions.zotero.zoteroSelectionTranslator.libretranslateKey"
+      />
+    </hbox>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>AI 模型</html:h2></label>
+    <html:p class="zst-pref-note">
+      支持四种接口：OpenAI 兼容（OpenAI、通义千问、Kimi、硅基流动、Ollama、LM Studio 等）、
+      DeepSeek 专属、Anthropic Claude、Google Gemini。AI 译文会经过学术翻译提示词处理，并可附带论文标题/摘要作为术语上下文。
+    </html:p>
+
+    <html:h3 class="zst-pref-subhead">OpenAI 兼容接口</html:h3>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-openai-endpoint">API 地址</label>
+      <html:input
+        id="zst-openai-endpoint"
+        class="zst-pref-input"
+        type="text"
+        placeholder="https://api.openai.com/v1 或 http://localhost:11434/v1"
+        preference="extensions.zotero.zoteroSelectionTranslator.openaiEndpoint"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-openai-key">API Key</label>
+      <html:input
+        id="zst-openai-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        placeholder="Ollama 等本地服务可留空"
+        preference="extensions.zotero.zoteroSelectionTranslator.openaiKey"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-openai-model">模型</label>
+      <html:input
+        id="zst-openai-model"
+        class="zst-pref-input"
+        type="text"
+        placeholder="gpt-4o-mini / deepseek-chat / qwen-plus ..."
+        preference="extensions.zotero.zoteroSelectionTranslator.openaiModel"
+      />
+      <label control="zst-openai-temp">Temperature</label>
+      <html:input
+        id="zst-openai-temp"
+        class="zst-pref-number"
+        type="number"
+        min="0"
+        max="2"
+        step="0.1"
+        preference="extensions.zotero.zoteroSelectionTranslator.openaiTemperature"
+      />
+    </hbox>
+
+    <html:h3 class="zst-pref-subhead">DeepSeek 专属接口</html:h3>
+    <html:p class="zst-pref-note">
+      DeepSeek 使用 OpenAI 兼容协议，但单独保存地址、Key 和模型，不会覆盖上面的 OpenAI 配置。
+      官方地址可填 <html:code>https://api.deepseek.com</html:code> 或
+      <html:code>https://api.deepseek.com/v1</html:code>；模型常用
+      <html:code>deepseek-chat</html:code>（通用对话）或
+      <html:code>deepseek-reasoner</html:code>（推理模型）。
+    </html:p>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-deepseek-endpoint">API 地址</label>
+      <html:input
+        id="zst-deepseek-endpoint"
+        class="zst-pref-input"
+        type="text"
+        placeholder="https://api.deepseek.com/v1"
+        preference="extensions.zotero.zoteroSelectionTranslator.deepseekEndpoint"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-deepseek-key">API Key</label>
+      <html:input
+        id="zst-deepseek-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        placeholder="sk-..."
+        preference="extensions.zotero.zoteroSelectionTranslator.deepseekKey"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-deepseek-model">模型</label>
+      <html:input
+        id="zst-deepseek-model"
+        class="zst-pref-input"
+        type="text"
+        placeholder="deepseek-chat / deepseek-reasoner"
+        preference="extensions.zotero.zoteroSelectionTranslator.deepseekModel"
+      />
+      <label control="zst-deepseek-temp">Temperature</label>
+      <html:input
+        id="zst-deepseek-temp"
+        class="zst-pref-number"
+        type="number"
+        min="0"
+        max="2"
+        step="0.1"
+        preference="extensions.zotero.zoteroSelectionTranslator.deepseekTemperature"
+      />
+    </hbox>
+
+    <html:h3 class="zst-pref-subhead">Anthropic Claude</html:h3>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-anthropic-endpoint">API 地址</label>
+      <html:input
+        id="zst-anthropic-endpoint"
+        class="zst-pref-input"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.anthropicEndpoint"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-anthropic-key">API Key</label>
+      <html:input
+        id="zst-anthropic-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        preference="extensions.zotero.zoteroSelectionTranslator.anthropicKey"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-anthropic-model">模型</label>
+      <html:input
+        id="zst-anthropic-model"
+        class="zst-pref-input"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.anthropicModel"
+      />
+      <label control="zst-anthropic-temp">Temperature</label>
+      <html:input
+        id="zst-anthropic-temp"
+        class="zst-pref-number"
+        type="number"
+        min="0"
+        max="1"
+        step="0.1"
+        preference="extensions.zotero.zoteroSelectionTranslator.anthropicTemperature"
+      />
+    </hbox>
+
+    <html:h3 class="zst-pref-subhead">Google Gemini</html:h3>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-gemini-endpoint">API 地址</label>
+      <html:input
+        id="zst-gemini-endpoint"
+        class="zst-pref-input"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.geminiEndpoint"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-gemini-key">API Key</label>
+      <html:input
+        id="zst-gemini-key"
+        class="zst-pref-input zst-pref-secret"
+        type="password"
+        preference="extensions.zotero.zoteroSelectionTranslator.geminiKey"
+      />
+    </hbox>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-gemini-model">模型</label>
+      <html:input
+        id="zst-gemini-model"
+        class="zst-pref-input"
+        type="text"
+        preference="extensions.zotero.zoteroSelectionTranslator.geminiModel"
+      />
+      <label control="zst-gemini-temp">Temperature</label>
+      <html:input
+        id="zst-gemini-temp"
+        class="zst-pref-number"
+        type="number"
+        min="0"
+        max="2"
+        step="0.1"
+        preference="extensions.zotero.zoteroSelectionTranslator.geminiTemperature"
+      />
+    </hbox>
+
+    <html:hr />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-ai-max-tokens">最大输出 tokens</label>
+      <html:input
+        id="zst-ai-max-tokens"
+        class="zst-pref-number"
+        type="number"
+        min="128"
+        max="32768"
+        step="128"
+        preference="extensions.zotero.zoteroSelectionTranslator.aiMaxTokens"
+      />
+      <checkbox
+        id="zst-ai-paper-context"
+        label="把论文标题和摘要作为术语上下文"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.aiUsePaperContext"
+      />
+    </hbox>
+
+    <hbox class="zst-pref-row" align="start">
+      <label control="zst-ai-system">系统提示词</label>
+      <html:textarea
+        id="zst-ai-system"
+        class="zst-pref-textarea"
+        rows="4"
+        spellcheck="false"
+        preference="extensions.zotero.zoteroSelectionTranslator.aiSystemPrompt"
+      ></html:textarea>
+    </hbox>
+    <hbox class="zst-pref-row" align="start">
+      <label control="zst-ai-user">用户提示词</label>
+      <html:textarea
+        id="zst-ai-user"
+        class="zst-pref-textarea"
+        rows="2"
+        spellcheck="false"
+        preference="extensions.zotero.zoteroSelectionTranslator.aiUserPrompt"
+      ></html:textarea>
+    </hbox>
+    <html:p class="zst-pref-note">
+      可用占位符：<html:code>${text}</html:code>、<html:code>${sourceLang}</html:code>、
+      <html:code>${targetLang}</html:code>、<html:code>${title}</html:code>、
+      <html:code>${abstract}</html:code>、<html:code>${context}</html:code>。
+      默认只输出译文，不建议在提示词中要求解释，否则评论会变长。
+    </html:p>
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-openai-headers">OpenAI 额外请求头</label>
+      <html:input
+        id="zst-openai-headers"
+        class="zst-pref-input"
+        type="text"
+        placeholder='例如 {"HTTP-Referer":"https://zotero.org"}'
+        preference="extensions.zotero.zoteroSelectionTranslator.openaiExtraHeaders"
+      />
+    </hbox>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>隐私与说明</html:h2></label>
+    <html:p class="zst-pref-note">
+      API Key 保存在本机 Zotero 配置（prefs.js）中，不会随插件上传。请使用带额度限制的 Key。
+      划词文本只会发送给你选择的翻译服务；选择 DeepL 免费网页版时发送到 deepl.com，选择 AI 时发送到你配置的 API。
+    </html:p>
+    <html:p class="zst-pref-note">
+      本插件不是 DeepL 官方产品。DeepL 免费网页接口可能随时变更；如需稳定使用，请配置官方 API Key。
+      遇到 429 限流时请降低划词频率或切换引擎。
+    </html:p>
+    <checkbox
+      id="zst-debug"
+      label="输出调试日志（Zotero 帮助 → 调试输出）"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.debug"
+    />
+  </groupbox>
+</vbox>

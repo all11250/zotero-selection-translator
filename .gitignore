@@ -1,0 +1,8 @@
+# Build output / local release artifacts
+build/
+dist/*.xpi
+dist/SHA256SUMS.txt
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
