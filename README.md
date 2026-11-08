@@ -1,4 +1,4 @@
-# 划词翻译 · Zotero Selection Translator
+# Zotero划词翻译 · Zotero Selection Translator · 支持免费版Deepl专业翻译
 
 一个面向 Zotero 7+ 的 PDF 划词翻译插件。在阅读器里选中文字，翻译面板会直接出现在选区下方；可以一键高亮/划线，并把译文写入标注评论。默认调用 DeepL 免费网页接口，也支持 DeepL API、Google、MyMemory、百度、Microsoft、LibreTranslate，以及 OpenAI 兼容 / DeepSeek / Anthropic / Gemini 等 AI 模型。
 
