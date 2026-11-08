@@ -23,6 +23,7 @@
 - **置顶接管划词**：置顶后，后续划词不再弹出新的翻译卡片，而是直接更新置顶卡片中的原文和译文；关闭置顶卡片后恢复选区弹窗。
 - **拖动与缩放**：置顶后按住卡片顶部空白处即可拖动；四条边框和四个角都可调整宽高，拖动/缩放使用 `requestAnimationFrame` 节流。
 - **学术字体**：可让译文中文使用宋体、英文/数字使用 Times New Roman（默认开启）。
+- **中文原文跳过翻译**：源语言为简体/繁体中文，或自动检测到选区是中文时，不调用任何翻译接口，也不显示插件翻译卡片，只使用 Zotero 原生的划线/高亮功能。
 - **缓存与回退**：相同文本/语言/引擎的译文仅在内存中缓存，退出 Zotero 自动清空，不占用磁盘空间；设置页可立即手动清空。DeepL 免费接口失败时可自动尝试备用免费引擎。
 
 ## 安装
@@ -32,7 +33,7 @@
 1. 打开 Zotero。
 2. 菜单 **工具 → 插件**（macOS：**Zotero → 设置 → 插件**）。
 3. 点击右上角齿轮 → **Install Add-on From File…**。
-4. 选择从 [Releases](https://github.com/all11250/zotero-selection-translator/releases/latest) 下载的 `.xpi` 文件。
+4. 选择从 [Releases](https://github.com/all11250/zotero-selection-translator/releases/latest) 下载的 `.xpi` 文件（v1.7.0）。
 5. 按提示重启 Zotero。
 
 > `.xpi` 就是 Zotero 的插件安装包；不需要解压，也不要把它改成 `.zip` 后安装。
@@ -50,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build.ps1
 构建产物：
 
 ```text
-dist/zotero-selection-translator-1.6.0.xpi
+dist/zotero-selection-translator-1.7.0.xpi
 dist/zotero-selection-translator.xpi
 dist/SHA256SUMS.txt
 ```
@@ -80,6 +81,15 @@ powershell -ExecutionPolicy Bypass -File scripts/validate.ps1
 - **设置面板**：基本设置 → 译文字号（8–48 px，可直接输入任意值）、译文行间距（1.0–3.0 倍，支持 0.05 步进）。
 - **翻译面板**：点击面板顶部「Aa」按钮，展开字号/行距输入框，立即作用于当前译文；修改会保存为后续默认值。
 - **学术字体**：设置中勾选「译文中文使用宋体，英文/数字使用 Times New Roman」后，译文会使用 `"Times New Roman", "SimSun", "宋体", ...` 字体栈：英文/数字优先 TNR，中文字符回退到宋体。该选项默认开启。
+
+### 中文原文
+
+当源语言设置为简体中文/繁体中文，或「自动检测」判断选区为中文时，插件会直接跳过翻译请求：
+
+- 不显示插件翻译卡片
+- 不调用 DeepL / AI / 其他翻译接口
+- 使用 Zotero 原生的颜色、高亮和下划线功能
+- 置顶卡片存在时也不会用中文选区更新它
 
 ### 翻译缓存
 

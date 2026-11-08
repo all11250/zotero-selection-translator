@@ -325,12 +325,33 @@ var ZoteroSelectionTranslator = (function () {
 
     // ---------------------------------------------------------------- reader
 
+    isChineseSource(text) {
+      const value = String(text || "");
+      // Do not mistake Japanese kana / Korean hangul for Chinese, even when
+      // the selection also contains CJK ideographs.
+      if (/[\u3040-\u30ff\uac00-\ud7af]/.test(value)) {
+        return false;
+      }
+      return /[\u3400-\u9fff]/.test(value);
+    }
+
     onRenderTextSelectionPopup(event) {
       if (!this.getPref("enabled")) {
         return;
       }
       const annotation = event && event.params && event.params.annotation;
       if (!annotation || !annotation.text || !String(annotation.text).trim()) {
+        return;
+      }
+      const sourcePref = this.getPref("sourceLanguage");
+      const isChinese =
+        sourcePref === "zh-CN" ||
+        sourcePref === "zh-TW" ||
+        this.isChineseSource(annotation.text);
+      if (isChinese) {
+        // Chinese source text needs no translation. Leave Zotero's native
+        // selection popup in charge of highlight/underline so this plugin
+        // makes no translation request and shows no custom translation card.
         return;
       }
       try {

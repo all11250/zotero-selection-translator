@@ -1,6 +1,6 @@
 {
   "name": "zotero-selection-translator",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "description": "Zotero 7+ selection translator with DeepL free web endpoint, multiple engines, AI APIs, and annotation comments.",
   "scripts": {

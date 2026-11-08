@@ -83,6 +83,8 @@ assert.ok(translate.includes("getActivePin"));
 assert.ok(translate.includes("updatePinnedTranslation"));
 assert.ok(translate.includes("clearTranslationCache"));
 assert.ok(bootstrap.includes("clearTranslationCache"));
+assert.ok(translate.includes("isChineseSource"));
+assert.ok(translate.includes("sourcePref === \"zh-CN\""));
 assert.ok(translate.includes('["n", "s", "e", "w", "nw", "ne", "sw", "se"]'));
 assert.ok(css.includes(".zst-resize-n"));
 
