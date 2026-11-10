@@ -35,8 +35,9 @@
   <groupbox>
     <label><html:h2>基本设置</html:h2></label>
     <html:p class="zst-pref-note">
-      在 PDF 阅读器中选中文字后，翻译面板会出现在选区下方。默认使用 DeepL 免费网页版，无需 Key。
-      可在面板顶部的下拉框中临时切换引擎。
+      在 PDF 阅读器中选中文字后，翻译面板会出现在选区下方。
+      <html:strong>为避开默认使用非官方接口带来的利益冲突，本插件不会默认调用任何翻译服务</html:strong>：
+      首次使用时请在这里或翻译面板顶部主动选择渠道（所有原有渠道均保留）。
     </html:p>
 
     <checkbox
@@ -79,13 +80,14 @@
     <html:hr />
 
     <hbox class="zst-pref-row" align="center">
-      <label control="zst-engine">默认翻译引擎</label>
+      <label control="zst-engine">默认翻译渠道（请主动选择）</label>
       <menulist
         id="zst-engine"
         native="true"
         preference="extensions.zotero.zoteroSelectionTranslator.engine"
       >
         <menupopup>
+          <menuitem label="请选择翻译渠道（默认不调用任何服务）" value="choose" />
           <menuitem label="DeepL 免费网页版（无需 Key）" value="deepl-free" />
           <menuitem label="DeepL API（官方 Key）" value="deepl-api" />
           <menuitem label="Google 翻译（免费）" value="google-free" />
@@ -385,6 +387,7 @@
         preference="extensions.zotero.zoteroSelectionTranslator.dictionarySource"
       >
         <menupopup>
+          <menuitem label="请选择词典来源（默认不查询）" value="choose" />
           <menuitem label="自动（依次尝试免费词典）" value="auto" />
           <menuitem label="必应词典（网页）" value="bing" />
           <menuitem label="有道词典（网页）" value="youdao" />
@@ -401,6 +404,7 @@
       preference="extensions.zotero.zoteroSelectionTranslator.dictionaryShowDefinitions"
     />
     <html:p class="zst-pref-note">
+      为避开默认查询带来的利益冲突，词典来源默认不选择，需用户主动选择后才会查询；
       必应、有道、牛津词典通过读取其公开网页获得免费释义，不需要 Key；这些页面可能随网站改版失效，
       自动模式会依次回退。它们都是<strong>非官方读取</strong>，可能违反对应网站的服务条款，
       仅供个人学习/研究使用：请保持低频、不要批量抓取，并保留界面中的来源链接与商标。

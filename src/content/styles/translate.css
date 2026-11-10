@@ -465,6 +465,34 @@
   min-height: 36px;
 }
 
+/* Shown when no translation channel has been selected yet. */
+.zst-engine-prompt {
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 83, 9, 0.55);
+  border-radius: 8px;
+  background: rgba(180, 83, 9, 0.1);
+}
+
+.zst-engine-prompt-title {
+  color: #b45309;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.zst-engine-prompt-msg {
+  color: var(--zst-text);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.zst-engine-prompt-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+
 .zst-error {
   padding: 8px 10px;
   border: 1px solid rgba(220, 38, 38, 0.28);

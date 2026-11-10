@@ -238,7 +238,7 @@ var ZoteroSelectionTranslator = (function () {
         this.setPref("dictionaryEnabled", true);
       }
       if (this.getPref("dictionarySource") === "") {
-        this.setPref("dictionarySource", "auto");
+        this.setPref("dictionarySource", "choose");
       }
       if (this.getPref("dictionaryShowDefinitions") === "") {
         this.setPref("dictionaryShowDefinitions", true);
@@ -505,9 +505,8 @@ var ZoteroSelectionTranslator = (function () {
       const width = clampNumber(this.getPref("popupWidth"), 300, 620, 380);
       const fontSize = clampNumber(this.getPref("fontSize"), 8, 48, 14);
       const lineHeight = clampNumber(this.getPref("lineHeight"), 1, 3, 1.65);
-      const engineId = E.ENGINE_IDS.includes(this.getPref("engine"))
-        ? this.getPref("engine")
-        : "deepl-free";
+      const enginePref = this.getPref("engine");
+      const engineId = E.isEngineId(enginePref) ? enginePref : E.UNSET_ENGINE;
 
       const panel = h(doc, "div", {
         className: "zst-panel",
@@ -542,7 +541,7 @@ var ZoteroSelectionTranslator = (function () {
         dictSource:
           hasDictionary && SelectionTranslatorDictionary.sources()[dictSource]
             ? dictSource
-            : "auto",
+            : "choose",
         dictData: null,
         hasDictionary,
         translation: "",
@@ -588,16 +587,32 @@ var ZoteroSelectionTranslator = (function () {
         if (next.startsWith("dict:")) {
           state.dictSource = next.slice(5);
           this.setPref("dictionarySource", state.dictSource);
+          if (state.dictSource === "choose") {
+            state.requestId += 1;
+            this.showDictSourcePrompt(state);
+            return;
+          }
           this.lookupDictionary(state, true);
           return;
         }
-        if (!E.ENGINE_IDS.includes(next)) {
+        if (next === E.UNSET_ENGINE) {
+          state.engineId = next;
+          this.setPref("engine", next);
+          state.requestId += 1;
+          this.showEnginePrompt(state);
+          return;
+        }
+        if (!E.isEngineId(next)) {
           return;
         }
         state.engineId = next;
         this.setPref("engine", next);
         if (state.mode === "dict") {
           this.lookupDictionary(state, true);
+        }
+        else if (state.continuous) {
+          state.requestId += 1;
+          this.scheduleContinuousTranslation(state, state.requestId);
         }
         else {
           this.runTranslation(state, true);
@@ -942,10 +957,15 @@ var ZoteroSelectionTranslator = (function () {
         select.title = "词典来源（也可以在这里临时切换）";
       }
       else {
+        add(
+          E.UNSET_ENGINE,
+          "请选择翻译渠道（默认不调用任何服务）",
+          state.engineId === E.UNSET_ENGINE
+        );
         for (const id of E.ENGINE_IDS) {
           add(id, E.engineLabel(id), id === state.engineId);
         }
-        select.title = "翻译引擎（也可以在这里临时切换）";
+        select.title = "翻译渠道（也可以在这里临时切换）";
       }
     }
 
@@ -1002,6 +1022,14 @@ var ZoteroSelectionTranslator = (function () {
 
     async lookupDictionary(state, force) {
       if (!state || state.destroyed || !state.hasDictionary) {
+        return;
+      }
+      if (
+        !state.dictSource ||
+        state.dictSource === "choose" ||
+        !this.dictionary.sources()[state.dictSource]
+      ) {
+        this.showDictSourcePrompt(state);
         return;
       }
       const word = normalizeLookupWord(state.word || state.cleanText);
@@ -1478,8 +1506,106 @@ var ZoteroSelectionTranslator = (function () {
       setTimeout(() => restore(), 1800);
     }
 
+    showDictSourcePrompt(state) {
+      if (!state || state.destroyed) {
+        return;
+      }
+      const doc = state.doc;
+      const box = h(doc, "div", { className: "zst-engine-prompt" });
+      box.append(
+        h(doc, "div", {
+          className: "zst-engine-prompt-title",
+          text: "尚未选择词典来源",
+        }),
+        h(doc, "div", {
+          className: "zst-engine-prompt-msg",
+          text:
+            "为避开默认查询带来的利益冲突，插件不会自动查询任何词典。请在上方下拉框选择词典来源（自动/必应/有道/牛津/Free Dictionary/AI），所有原有来源均保留。",
+        })
+      );
+      const actions = h(doc, "div", { className: "zst-engine-prompt-actions" });
+      const choose = h(doc, "button", {
+        className: "zst-btn primary",
+        text: "选择词典来源",
+        attrs: { type: "button" },
+      });
+      choose.addEventListener("click", () => {
+        const select = state.refs.engineSelect;
+        try {
+          select.focus();
+          select.showPicker?.();
+        }
+        catch (e) {
+          // Focus is enough; the select is in the header.
+        }
+      });
+      const settings = h(doc, "button", {
+        className: "zst-btn",
+        text: "打开设置",
+        attrs: { type: "button" },
+      });
+      settings.addEventListener("click", () => this.openPreferences());
+      actions.append(choose, settings);
+      box.append(actions);
+      state.refs.result.replaceChildren(box);
+      this.setActionState(state, false);
+      this.updateClearButton(state);
+      this.setStatus(state, "未选择词典来源", "err");
+    }
+
+    showEnginePrompt(state) {
+      if (!state || state.destroyed) {
+        return;
+      }
+      const doc = state.doc;
+      const box = h(doc, "div", { className: "zst-engine-prompt" });
+      box.append(
+        h(doc, "div", {
+          className: "zst-engine-prompt-title",
+          text: "尚未选择翻译渠道",
+        }),
+        h(doc, "div", {
+          className: "zst-engine-prompt-msg",
+          text:
+            "为避开默认使用非官方接口带来的利益冲突，插件不会默认调用任何翻译服务。请在上方下拉框选择渠道，或到设置中选择/配置官方 API 或 AI。所有原有渠道均保留，可随时切换。",
+        })
+      );
+      const actions = h(doc, "div", { className: "zst-engine-prompt-actions" });
+      const choose = h(doc, "button", {
+        className: "zst-btn primary",
+        text: "选择渠道",
+        attrs: { type: "button" },
+      });
+      choose.addEventListener("click", () => {
+        const select = state.refs.engineSelect;
+        try {
+          select.focus();
+          select.showPicker?.();
+        }
+        catch (e) {
+          // Focus is enough; the select is in the header.
+        }
+      });
+      const settings = h(doc, "button", {
+        className: "zst-btn",
+        text: "打开设置",
+        attrs: { type: "button" },
+      });
+      settings.addEventListener("click", () => this.openPreferences());
+      actions.append(choose, settings);
+      box.append(actions);
+      state.refs.result.replaceChildren(box);
+      this.setActionState(state, false);
+      this.updateClearButton(state);
+      this.setStatus(state, "未选择翻译渠道", "err");
+    }
+
     showTranslatePrompt(state) {
       if (state.destroyed) {
+        return;
+      }
+      if (!E.isEngineId(state.engineId)) {
+        this.showEnginePrompt(state);
         return;
       }
       const result = state.refs.result;
@@ -1706,6 +1832,9 @@ var ZoteroSelectionTranslator = (function () {
       if (!clean) {
         throw new Error("没有可翻译的文本。");
       }
+      if (!E.isEngineId(engineId)) {
+        throw new Error("尚未选择翻译渠道。请先在设置或翻译卡片顶部选择渠道。");
+      }
       const source = E.resolveSourceFor(engineId, sourceLang, clean);
       const key = this.cacheKey(engineId, source, targetLang, clean);
       const cached = this.readCache(key);
@@ -1800,6 +1929,10 @@ var ZoteroSelectionTranslator = (function () {
 
     async runTranslation(state, force) {
       if (state.destroyed || state.mode === "dict") {
+        return;
+      }
+      if (!E.isEngineId(state.engineId)) {
+        this.showEnginePrompt(state);
         return;
       }
       if (!force && state.translation) {
@@ -2172,6 +2305,10 @@ var ZoteroSelectionTranslator = (function () {
       }
       const text = state.cleanText;
       if (!text) {
+        return;
+      }
+      if (!E.isEngineId(state.engineId)) {
+        this.showEnginePrompt(state);
         return;
       }
       this.setStatus(
@@ -2748,9 +2885,13 @@ var ZoteroSelectionTranslator = (function () {
         if (!source.trim()) {
           throw new Error("这条标注没有可翻译的文字。");
         }
+        const enginePref = this.getPref("engine");
+        if (!E.isEngineId(enginePref)) {
+          throw new Error("尚未选择翻译渠道。请先在设置或翻译卡片顶部选择渠道。");
+        }
         const result = await this.translateText({
           text: source,
-          engineId: E.ENGINE_IDS.includes(this.getPref("engine")) ? this.getPref("engine") : "deepl-free",
+          engineId: enginePref,
           sourceLang: this.getPref("sourceLanguage"),
           targetLang: this.getPref("targetLanguage"),
           reader,

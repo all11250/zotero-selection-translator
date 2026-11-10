@@ -65,6 +65,16 @@ var SelectionTranslatorEngines = (function () {
 
   const ENGINE_IDS = Object.keys(ENGINE_LABELS);
 
+  // The plugin deliberately does not default to any third-party translation
+  // service. "choose" is a UI-only sentinel meaning “no channel selected yet”,
+  // which keeps every existing engine available while avoiding a default that
+  // would create a conflict of interest with a provider.
+  const UNSET_ENGINE = "choose";
+
+  function isEngineId(id) {
+    return ENGINE_IDS.includes(id);
+  }
+
   const ANNOTATION_COLORS = [
     ["黄色", "#ffd400"],
     ["红色", "#ff6666"],
@@ -204,6 +214,9 @@ var SelectionTranslatorEngines = (function () {
   }
 
   function engineLabel(id) {
+    if (id === UNSET_ENGINE || !id) {
+      return "未选择渠道";
+    }
     return ENGINE_LABELS[id] || id;
   }
 
@@ -1245,6 +1258,8 @@ var SelectionTranslatorEngines = (function () {
     LANGUAGES,
     ENGINE_LABELS,
     ENGINE_IDS,
+    UNSET_ENGINE,
+    isEngineId,
     ANNOTATION_COLORS,
     HttpError,
     createEngines,

@@ -22,6 +22,12 @@ var SelectionTranslatorDictionary = (function () {
   const E = SelectionTranslatorEngines;
 
   const SOURCES = {
+    choose: {
+      id: "choose",
+      label: "请选择词典来源（不默认查询）",
+      homepage: "",
+      official: false,
+    },
     auto: {
       id: "auto",
       label: "自动（依次尝试）",
@@ -60,7 +66,7 @@ var SelectionTranslatorDictionary = (function () {
     },
   };
 
-  const SOURCE_LIST = ["auto", "bing", "youdao", "oxford", "freedict", "ai"].map(
+  const SOURCE_LIST = ["choose", "auto", "bing", "youdao", "oxford", "freedict", "ai"].map(
     (id) => SOURCES[id]
   );
 
@@ -667,7 +673,10 @@ var SelectionTranslatorDictionary = (function () {
     if (!word) {
       throw new Error("这不是一个可以查词典的单词。");
     }
-    const source = (ctx && ctx.source) || "auto";
+    const source = (ctx && ctx.source) || "choose";
+    if (source === "choose") {
+      throw new Error("尚未选择词典来源。请先在设置或词典卡片顶部选择来源。");
+    }
     if (source === "auto") {
       const errors = [];
       for (const id of AUTO_ORDER) {

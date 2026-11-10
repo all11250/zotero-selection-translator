@@ -7,7 +7,9 @@ pref(P + "enabled", true);
 pref(P + "autoTranslate", true);
 pref(P + "sourceLanguage", "auto");
 pref(P + "targetLanguage", "zh-CN");
-pref(P + "engine", "deepl-free");
+// Intentionally not a real engine: the plugin must not default to any
+// third-party service. Users choose a channel explicitly.
+pref(P + "engine", "choose");
 
 pref(P + "annotationComment", true);
 pref(P + "annotationType", "highlight");
@@ -24,7 +26,8 @@ pref(P + "showSidebarButton", true);
 pref(P + "pinByDefault", false);
 
 pref(P + "dictionaryEnabled", true);
-pref(P + "dictionarySource", "auto");
+// No default dictionary lookup either: the user must pick a source.
+pref(P + "dictionarySource", "choose");
 pref(P + "dictionaryShowDefinitions", true);
 pref(P + "dictionaryAiEngine", "auto");
 pref(

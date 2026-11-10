@@ -81,7 +81,9 @@ for (const source of [
 assert.ok(dictionary.includes("phonetics"));
 assert.ok(dictionary.includes("sourceLabel"));
 assert.ok(dictionary.includes("AUTO_ORDER"));
+assert.ok(dictionary.includes("choose"));
 assert.ok(dictionary.includes("aiDictionary"));
+assert.ok(translate.includes("showDictSourcePrompt"));
 assert.ok(engines.includes("aiDictionary"));
 assert.ok(engines.includes("dictionaryAiPrompt"));
 assert.ok(translate.includes("lookupDictionary"));
@@ -115,6 +117,11 @@ for (const key of [
   assert.ok(prefs.includes(`"${key}"`), `missing pref ${key}`);
 }
 assert.ok(prefs.includes('const P = "extensions.zotero.zoteroSelectionTranslator."'));
+assert.ok(prefs.includes('pref(P + "engine", "choose")'), "default channel must be unset");
+assert.ok(
+  prefs.includes('pref(P + "dictionarySource", "choose")'),
+  "default dictionary source must be unset"
+);
 assert.ok(!/pref\(\s*"[^"]*"\s*,\s*undefined/.test(prefs));
 
 const css = read("src/content/styles/translate.css");
@@ -142,6 +149,9 @@ assert.ok(translate.includes("toggleContinuous"));
 assert.ok(translate.includes("pinByDefault"));
 assert.ok(translate.includes("joinText"));
 assert.ok(translate.includes("dictionaryEnabled"));
+assert.ok(translate.includes("showEnginePrompt"));
+assert.ok(translate.includes("isEngineId"));
+assert.ok(engines.includes("UNSET_ENGINE"));
 assert.ok(css.includes("align-items: center"));
 assert.ok(translate.includes("第三方非官方插件"));
 
@@ -154,6 +164,9 @@ assert.ok(prefsXhtml.includes("zst-clear-cache"));
 assert.ok(prefsXhtml.includes('id="zst-disclaimer"'));
 assert.ok(prefsXhtml.includes("重要声明与免责声明"));
 assert.ok(prefsXhtml.includes("仅供个人学习"));
+assert.ok(prefsXhtml.includes('value="choose"'));
+assert.ok(prefsXhtml.includes("不会默认调用任何翻译服务"));
+assert.ok(prefsXhtml.includes("默认不查询"));
 assert.ok(prefsXhtml.includes("承担责任"));
 for (const key of [
   "extensions.zotero.zoteroSelectionTranslator.engine",
