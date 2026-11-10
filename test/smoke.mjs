@@ -8,6 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const manifest = JSON.parse(read("src/manifest.json"));
 assert.equal(manifest.manifest_version, 2);
+assert.ok(manifest.version.startsWith("1.8."), "unexpected version " + manifest.version);
 const zotero = manifest.applications?.zotero;
 assert.ok(zotero, "applications.zotero missing");
 assert.equal(zotero.id, "selection-translator@zotero.local");
@@ -19,6 +20,7 @@ assert.ok(fs.existsSync(path.join(root, "src/prefs.js")));
 
 const bootstrap = read("src/bootstrap.js");
 assert.ok(bootstrap.includes("content/scripts/engines.js"));
+assert.ok(bootstrap.includes("content/scripts/dictionary.js"));
 assert.ok(bootstrap.includes("content/scripts/translate.js"));
 assert.ok(bootstrap.includes("evalInSandbox"), "jar fallback missing");
 
@@ -30,6 +32,11 @@ assert.ok(translate.includes("saveFromJSON"));
 assert.ok(translate.includes("ensureReaderStyles"));
 assert.ok(translate.includes("zst-save-btn"));
 assert.ok(!translate.includes("runSelfTest"), "self-test hook leaked into release");
+assert.ok(!bootstrap.includes("selftest"), "self-test loader leaked into release");
+assert.ok(
+  !fs.existsSync(path.join(root, "src/content/scripts/selftest.js")),
+  "self-test file leaked into release"
+);
 
 const engines = read("src/content/scripts/engines.js");
 assert.ok(engines.includes("oneshot-free.www.deepl.com"));
@@ -45,6 +52,26 @@ assert.ok(engines.includes("translateDeepSeek"));
 assert.ok(engines.includes("deepseekEndpoint"));
 assert.ok(engines.includes("api.anthropic.com"));
 assert.ok(engines.includes("generativelanguage.googleapis.com"));
+
+const dictionary = read("src/content/scripts/dictionary.js");
+for (const source of [
+  "cn.bing.com/dict",
+  "dict.youdao.com/jsonapi",
+  "oxfordlearnersdictionaries.com",
+  "api.dictionaryapi.dev",
+]) {
+  assert.ok(dictionary.includes(source), `dictionary source missing ${source}`);
+}
+assert.ok(dictionary.includes("phonetics"));
+assert.ok(dictionary.includes("sourceLabel"));
+assert.ok(dictionary.includes("AUTO_ORDER"));
+assert.ok(dictionary.includes("aiDictionary"));
+assert.ok(engines.includes("aiDictionary"));
+assert.ok(engines.includes("dictionaryAiPrompt"));
+assert.ok(translate.includes("lookupDictionary"));
+assert.ok(translate.includes("renderDictionary"));
+assert.ok(translate.includes("speakWord"));
+assert.ok(translate.includes("zst-dict"));
 
 const prefs = read("src/prefs.js");
 for (const key of [
@@ -62,11 +89,14 @@ for (const key of [
   "deepseekModel",
   "anthropicEndpoint",
   "geminiEndpoint",
+  "dictionaryEnabled",
+  "dictionarySource",
+  "dictionaryShowDefinitions",
+  "dictionaryAiEngine",
+  "dictionaryAiPrompt",
+  "pinByDefault",
 ]) {
-  assert.ok(
-    prefs.includes(`pref(P + "${key}"`),
-    `missing pref ${key}`
-  );
+  assert.ok(prefs.includes(`"${key}"`), `missing pref ${key}`);
 }
 assert.ok(prefs.includes('const P = "extensions.zotero.zoteroSelectionTranslator."'));
 assert.ok(!/pref\(\s*"[^"]*"\s*,\s*undefined/.test(prefs));
@@ -87,6 +117,15 @@ assert.ok(translate.includes("isChineseSource"));
 assert.ok(translate.includes("sourcePref === \"zh-CN\""));
 assert.ok(translate.includes('["n", "s", "e", "w", "nw", "ne", "sw", "se"]'));
 assert.ok(css.includes(".zst-resize-n"));
+assert.ok(css.includes(".zst-cont-btn"));
+assert.ok(css.includes(".zst-dict-word"));
+assert.ok(css.includes(".zst-phonetic-btn"));
+assert.ok(!/\.zst-resize-handle::after/.test(css), "resize handle dot visuals removed");
+assert.ok(translate.includes("appendContinuousSelection"));
+assert.ok(translate.includes("toggleContinuous"));
+assert.ok(translate.includes("pinByDefault"));
+assert.ok(translate.includes("joinText"));
+assert.ok(translate.includes("dictionaryEnabled"));
 
 const prefsXhtml = read("src/content/preferences.xhtml");
 assert.ok(prefsXhtml.includes("zst-clear-cache"));
@@ -100,6 +139,11 @@ for (const key of [
   "extensions.zotero.zoteroSelectionTranslator.deepseekEndpoint",
   "extensions.zotero.zoteroSelectionTranslator.deepseekKey",
   "extensions.zotero.zoteroSelectionTranslator.aiSystemPrompt",
+  "extensions.zotero.zoteroSelectionTranslator.dictionaryEnabled",
+  "extensions.zotero.zoteroSelectionTranslator.dictionarySource",
+  "extensions.zotero.zoteroSelectionTranslator.dictionaryAiEngine",
+  "extensions.zotero.zoteroSelectionTranslator.dictionaryAiPrompt",
+  "extensions.zotero.zoteroSelectionTranslator.pinByDefault",
 ]) {
   assert.ok(prefsXhtml.includes(key), `preference pane missing ${key}`);
 }

@@ -190,10 +190,13 @@
 .zst-result-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   min-height: 20px;
   margin-bottom: 2px;
+}
+
+.zst-result-head .zst-head-spacer {
+  flex: 1 1 auto;
 }
 
 .zst-result-title {
@@ -203,7 +206,8 @@
   letter-spacing: 0.08em;
 }
 
-.zst-pin-btn {
+.zst-pin-btn,
+.zst-cont-btn {
   height: 20px;
   padding: 0 7px;
   border: 1px solid var(--zst-border);
@@ -215,6 +219,23 @@
   line-height: 1;
   cursor: pointer;
   flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.zst-cont-btn {
+  color: var(--zst-accent);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.zst-cont-btn:hover,
+.zst-cont-btn.active {
+  border-color: var(--zst-accent);
+  background: var(--zst-accent-soft);
+  color: var(--zst-accent);
+}
+
+.zst-cont-btn[hidden] {
+  display: none !important;
 }
 
 .zst-pin-btn:hover {
@@ -251,6 +272,156 @@
 .zst-panel.zst-serif-font .zst-translation {
   font-family: "Times New Roman", "SimSun", "宋体", "Songti SC", "STSong",
     "Noto Serif CJK SC", serif;
+}
+
+/* Single-word dictionary card. */
+.zst-dict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 1px 4px;
+  user-select: text;
+}
+
+.zst-dict-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.zst-dict-word {
+  font-family: "Times New Roman", "SimSun", "宋体", serif;
+  font-size: calc(var(--zst-font-size, 14px) + 3px);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--zst-text);
+}
+
+.zst-phonetics {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.zst-dict-translation {
+  font-size: var(--zst-font-size, 14px);
+  font-weight: 600;
+  line-height: var(--zst-line-height, 1.65);
+  overflow-wrap: anywhere;
+}
+
+.zst-phonetic-btn {
+  padding: 1px 6px;
+  border: 1px dashed rgba(37, 99, 235, 0.45);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zst-accent);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.zst-phonetic-btn:hover {
+  border-style: solid;
+  background: var(--zst-accent-soft);
+}
+
+.zst-dict-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.zst-dict-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zst-dict-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.zst-dict-pos {
+  flex: 0 0 auto;
+  min-width: 28px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--zst-accent-soft);
+  color: var(--zst-accent);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 18px;
+  text-align: center;
+}
+
+.zst-dict-meanings {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--zst-font-size, 14px);
+  line-height: var(--zst-line-height, 1.65);
+  overflow-wrap: anywhere;
+}
+
+.zst-dict-defs,
+.zst-dict-examples {
+  margin-left: 35px;
+  color: var(--zst-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.zst-dict-def,
+.zst-dict-example {
+  overflow-wrap: anywhere;
+}
+
+.zst-dict-example {
+  font-style: italic;
+}
+
+.zst-dict-source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--zst-border);
+  color: var(--zst-muted);
+  font-size: 10px;
+}
+
+.zst-dict-link {
+  font-size: 10px;
+}
+
+.zst-dict-note {
+  color: var(--zst-muted);
+}
+
+.zst-dict-mode .zst-result {
+  max-height: 320px;
+}
+
+.zst-dict-mode.zst-pinned .zst-result {
+  max-height: none;
+}
+
+.zst-prompt-text {
+  color: var(--zst-muted);
+  font-size: 12px;
+}
+
+.zst-error-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 7px;
 }
 
 .zst-loading {
@@ -556,12 +727,15 @@
   max-height: none;
 }
 
+/* Invisible resize hit zones. There is deliberately no visual indicator:
+ * the blue corner dots and edge bars were removed in 1.8.0-beta. */
 .zst-resize-handle {
   display: none;
   position: absolute;
-  width: 16px;
-  height: 16px;
-  z-index: 10;
+  width: 24px;
+  height: 24px;
+  z-index: 12;
+  background: transparent;
   touch-action: none;
 }
 
@@ -569,68 +743,37 @@
   display: block;
 }
 
-.zst-resize-handle::after {
-  content: "";
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--zst-accent);
-  opacity: 0.4;
-}
-
-.zst-resize-handle:hover::after {
-  opacity: 0.85;
-}
-
-/* Edge handles make the whole frame border draggable, not just the corners. */
+/* Edge handles make the whole frame border resizable, not just the corners. */
 .zst-resize-n,
 .zst-resize-s,
 .zst-resize-e,
 .zst-resize-w {
-  z-index: 8;
+  z-index: 10;
 }
 
 .zst-resize-n {
-  left: 16px;
-  right: 16px;
+  left: 24px;
+  right: 24px;
   top: 0;
   width: auto;
-  height: 10px;
+  height: 12px;
   cursor: ns-resize;
-}
-
-.zst-resize-n::after,
-.zst-resize-s::after {
-  left: 50%;
-  width: 20px;
-  height: 3px;
-  margin-left: -10px;
-  border-radius: 2px;
-}
-
-.zst-resize-n::after {
-  top: 2px;
 }
 
 .zst-resize-s {
-  left: 16px;
-  right: 16px;
+  left: 24px;
+  right: 24px;
   bottom: 0;
   width: auto;
-  height: 10px;
+  height: 12px;
   cursor: ns-resize;
-}
-
-.zst-resize-s::after {
-  bottom: 2px;
 }
 
 .zst-resize-e,
 .zst-resize-w {
-  top: 16px;
-  bottom: 16px;
-  width: 8px;
+  top: 24px;
+  bottom: 24px;
+  width: 12px;
   height: auto;
   cursor: ew-resize;
 }
@@ -643,28 +786,11 @@
   left: 0;
 }
 
-.zst-resize-e::after,
-.zst-resize-w::after {
-  top: 50%;
-  width: 3px;
-  height: 20px;
-  margin-top: -10px;
-  border-radius: 2px;
-}
-
-.zst-resize-e::after {
-  right: 2px;
-}
-
-.zst-resize-w::after {
-  left: 2px;
-}
-
 .zst-resize-nw,
 .zst-resize-ne,
 .zst-resize-sw,
 .zst-resize-se {
-  z-index: 11;
+  z-index: 13;
 }
 
 .zst-resize-nw {
@@ -673,20 +799,10 @@
   cursor: nwse-resize;
 }
 
-.zst-resize-nw::after {
-  left: 3px;
-  top: 3px;
-}
-
 .zst-resize-ne {
   right: 0;
   top: 0;
   cursor: nesw-resize;
-}
-
-.zst-resize-ne::after {
-  right: 3px;
-  top: 3px;
 }
 
 .zst-resize-sw {
@@ -695,20 +811,10 @@
   cursor: nesw-resize;
 }
 
-.zst-resize-sw::after {
-  left: 3px;
-  bottom: 3px;
-}
-
 .zst-resize-se {
   right: 0;
   bottom: 0;
   cursor: nwse-resize;
-}
-
-.zst-resize-se::after {
-  right: 3px;
-  bottom: 3px;
 }
 
 /* Reader toolbar toggle. */

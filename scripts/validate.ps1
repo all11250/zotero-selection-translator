@@ -6,6 +6,7 @@ Write-Host "== JavaScript syntax =="
 $jsFiles = @(
   "src/bootstrap.js",
   "src/content/scripts/engines.js",
+  "src/content/scripts/dictionary.js",
   "src/content/scripts/translate.js"
 )
 foreach ($file in $jsFiles) {
@@ -44,6 +45,7 @@ $required = @(
   "src/prefs.js",
   "src/content/scripts/translate.js",
   "src/content/scripts/engines.js",
+  "src/content/scripts/dictionary.js",
   "src/content/styles/translate.css",
   "src/content/styles/preferences.css",
   "src/content/preferences.xhtml",

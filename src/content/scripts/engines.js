@@ -956,7 +956,7 @@ var SelectionTranslatorEngines = (function () {
    * but gets its own endpoint/key/model prefs so the two configurations do
    * not overwrite each other.
    */
-  async function translateOpenAICompatible(ctx, config) {
+  async function callOpenAICompatible(ctx, config, prompt) {
     const key = String(ctx.host.getPref(config.keyPref) || "").trim();
     const defaultEndpoint = config.defaultEndpoint || "https://api.openai.com/v1";
     const endpoint = normalizeOpenAIEndpoint(
@@ -978,7 +978,6 @@ var SelectionTranslatorEngines = (function () {
         `尚未配置 ${config.label} 的 API Key。Ollama 等本地服务可留空。`
       );
     }
-    const prompt = aiPrompt(ctx);
     const headers = { "Content-Type": "application/json" };
     if (key) headers.Authorization = `Bearer ${key}`;
     const extraPref = config.extraHeadersPref;
@@ -1017,8 +1016,8 @@ var SelectionTranslatorEngines = (function () {
     return result;
   }
 
-  async function translateOpenAI(ctx) {
-    return translateOpenAICompatible(ctx, {
+  const AI_CONFIGS = {
+    "ai-openai": {
       label: "OpenAI 兼容接口",
       endpointPref: "openaiEndpoint",
       keyPref: "openaiKey",
@@ -1027,11 +1026,8 @@ var SelectionTranslatorEngines = (function () {
       extraHeadersPref: "openaiExtraHeaders",
       defaultEndpoint: "https://api.openai.com/v1",
       allowEmptyKey: true,
-    });
-  }
-
-  async function translateDeepSeek(ctx) {
-    return translateOpenAICompatible(ctx, {
+    },
+    "ai-deepseek": {
       label: "DeepSeek",
       endpointPref: "deepseekEndpoint",
       keyPref: "deepseekKey",
@@ -1040,7 +1036,23 @@ var SelectionTranslatorEngines = (function () {
       extraHeadersPref: "",
       defaultEndpoint: "https://api.deepseek.com/v1",
       allowEmptyKey: false,
-    });
+    },
+  };
+
+  function aiConfigFor(engineId) {
+    return AI_CONFIGS[engineId] || null;
+  }
+
+  async function translateOpenAICompatible(ctx, config) {
+    return callOpenAICompatible(ctx, config, aiPrompt(ctx));
+  }
+
+  async function translateOpenAI(ctx) {
+    return translateOpenAICompatible(ctx, AI_CONFIGS["ai-openai"]);
+  }
+
+  async function translateDeepSeek(ctx) {
+    return translateOpenAICompatible(ctx, AI_CONFIGS["ai-deepseek"]);
   }
 
   function normalizeAnthropicEndpoint(raw) {
@@ -1050,7 +1062,7 @@ var SelectionTranslatorEngines = (function () {
     return `${endpoint}/v1/messages`;
   }
 
-  async function translateAnthropic(ctx) {
+  async function callAnthropic(ctx, prompt) {
     const key = String(ctx.host.getPref("anthropicKey") || "").trim();
     const model = String(ctx.host.getPref("anthropicModel") || "").trim();
     if (!key) {
@@ -1060,7 +1072,6 @@ var SelectionTranslatorEngines = (function () {
       throw new Error("尚未配置 Anthropic 模型名。");
     }
     const endpoint = normalizeAnthropicEndpoint(ctx.host.getPref("anthropicEndpoint"));
-    const prompt = aiPrompt(ctx);
     const body = {
       model,
       max_tokens: aiMaxTokens(ctx.host),
@@ -1093,6 +1104,10 @@ var SelectionTranslatorEngines = (function () {
     return result;
   }
 
+  async function translateAnthropic(ctx) {
+    return callAnthropic(ctx, aiPrompt(ctx));
+  }
+
   function geminiUrl(host) {
     const base = String(host.getPref("geminiEndpoint") || "https://generativelanguage.googleapis.com/v1beta")
       .trim()
@@ -1107,13 +1122,12 @@ var SelectionTranslatorEngines = (function () {
     return `${base}/models/${encodeURIComponent(model)}:generateContent`;
   }
 
-  async function translateGemini(ctx) {
+  async function callGemini(ctx, prompt) {
     const key = String(ctx.host.getPref("geminiKey") || "").trim();
     if (!key) {
       throw new Error("尚未配置 Gemini API Key。");
     }
     const endpoint = geminiUrl(ctx.host);
-    const prompt = aiPrompt(ctx);
     const body = {
       systemInstruction: { parts: [{ text: prompt.system }] },
       contents: [{ role: "user", parts: [{ text: prompt.user }] }],
@@ -1146,6 +1160,64 @@ var SelectionTranslatorEngines = (function () {
       throw new HttpError(0, "Gemini 返回了空译文", res.text);
     }
     return result;
+  }
+
+  async function translateGemini(ctx) {
+    return callGemini(ctx, aiPrompt(ctx));
+  }
+
+  const AI_ENGINE_IDS = ["ai-openai", "ai-deepseek", "ai-anthropic", "ai-gemini"];
+
+  // Kept in sync with the default in prefs.js. Used as a fallback when the
+  // preference is empty (e.g. a profile upgraded from a release that predates
+  // the AI dictionary).
+  const DEFAULT_DICTIONARY_AI_PROMPT =
+    "You are a concise bilingual dictionary. For the English word \"${word}\", return ONLY a JSON object " +
+    "with this exact schema: " +
+    "{\"word\":\"${word}\",\"phonetic_us\":\"IPA or empty\",\"phonetic_uk\":\"IPA or empty\"," +
+    "\"entries\":[{\"pos\":\"part of speech in abbreviated form\",\"meanings\":[\"Chinese meaning 1\",\"Chinese meaning 2\"]}]}. " +
+    "Use 1-3 entries ordered by frequency, at most 4 Chinese meanings per entry, no examples, no markdown, no commentary. " +
+    "If the word is unknown, return {\"word\":\"${word}\",\"entries\":[]}.";
+
+  function resolveDictionaryAIEngine(host, currentEngine) {
+    const pref = String(host.getPref("dictionaryAiEngine") || "auto");
+    if (pref !== "auto" && AI_ENGINE_IDS.includes(pref)) {
+      return pref;
+    }
+    if (currentEngine && AI_ENGINE_IDS.includes(currentEngine)) {
+      return currentEngine;
+    }
+    return "ai-deepseek";
+  }
+
+  /**
+   * Ask the configured AI model for a dictionary entry. The default prompt
+   * requests strict JSON so the panel can render part-of-speech grouped
+   * meanings; the parser in dictionary.js tolerates a plain-text answer.
+   */
+  async function aiDictionary(ctx) {
+    const engineId = resolveDictionaryAIEngine(ctx.host, ctx.engineId);
+    const values = {
+      word: ctx.word,
+      targetLang: labelForLanguage(ctx.targetLang),
+    };
+    const promptTemplate =
+      ctx.host.getPref("dictionaryAiPrompt") || DEFAULT_DICTIONARY_AI_PROMPT;
+    const prompt = {
+      system: fillTemplate(promptTemplate, values),
+      user: String(ctx.word || ""),
+    };
+    let text;
+    if (engineId === "ai-openai" || engineId === "ai-deepseek") {
+      text = await callOpenAICompatible(ctx, AI_CONFIGS[engineId], prompt);
+    }
+    else if (engineId === "ai-anthropic") {
+      text = await callAnthropic(ctx, prompt);
+    }
+    else {
+      text = await callGemini(ctx, prompt);
+    }
+    return { engine: engineId, text };
   }
 
   function createEngines(host) {
@@ -1184,5 +1256,9 @@ var SelectionTranslatorEngines = (function () {
     resolveSourceFor,
     cleanAIResult,
     decodeEntities,
+    httpRequest,
+    parseJson,
+    aiDictionary,
+    AI_ENGINE_IDS,
   };
 })();

@@ -40,6 +40,12 @@
       native="true"
       preference="extensions.zotero.zoteroSelectionTranslator.showSidebarButton"
     />
+    <checkbox
+      id="zst-pin-by-default"
+      label="划词翻译卡片默认置顶（首次划词即固定，直到手动关闭置顶）"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.pinByDefault"
+    />
 
     <html:hr />
 
@@ -249,7 +255,7 @@
     <hbox class="zst-pref-row" align="center">
       <checkbox
         id="zst-fallback-enabled"
-        label="免费引擎失败时自动尝试备用引擎"
+        label="免费引擎失败时自动尝试备用引擎（会把同一段文本发给备用服务）"
         native="true"
         preference="extensions.zotero.zoteroSelectionTranslator.fallbackEnabled"
       />
@@ -323,6 +329,81 @@
     </hbox>
     <html:p class="zst-pref-note">
       这三项用于维持 DeepL 网页版客户端指纹。只有接口因版本过期返回 403 时才需要调整，通常无需修改。
+    </html:p>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>词典查询（单词划词）</html:h2></label>
+    <html:p class="zst-pref-note">
+      选中单个英文单词时，翻译卡片会切换为词典模式，显示词性、中文释义以及美式/英式音标。
+      点击音标按钮即可朗读；没有音标时会退回到系统语音合成。
+    </html:p>
+    <checkbox
+      id="zst-dictionary-enabled"
+      label="单词划词时显示词典释义（词性 + 翻译）"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.dictionaryEnabled"
+    />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-dictionary-source">默认词典来源</label>
+      <menulist
+        id="zst-dictionary-source"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.dictionarySource"
+      >
+        <menupopup>
+          <menuitem label="自动（依次尝试免费词典）" value="auto" />
+          <menuitem label="必应词典（网页）" value="bing" />
+          <menuitem label="有道词典（网页）" value="youdao" />
+          <menuitem label="牛津学习者词典（网页）" value="oxford" />
+          <menuitem label="Free Dictionary API（Wiktionary）" value="freedict" />
+          <menuitem label="AI 词典（使用已配置的 AI）" value="ai" />
+        </menupopup>
+      </menulist>
+    </hbox>
+    <checkbox
+      id="zst-dictionary-definitions"
+      label="同时显示英文释义（若词典提供）"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.dictionaryShowDefinitions"
+    />
+    <html:p class="zst-pref-note">
+      必应、有道、牛津词典通过读取其公开网页获得免费释义，不需要 Key；这些页面可能随网站改版失效，
+      自动模式会依次回退。它们都是<strong>非官方读取</strong>，可能违反对应网站的服务条款，
+      仅供个人学习/研究使用：请保持低频、不要批量抓取，并保留界面中的来源链接与商标。
+      词典数据版权归各词典所有；需要商用或稳定服务请购买对应词典的授权 API。
+    </html:p>
+    <html:hr />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-dict-ai-engine">AI 词典使用</label>
+      <menulist
+        id="zst-dict-ai-engine"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.dictionaryAiEngine"
+      >
+        <menupopup>
+          <menuitem label="自动（当前翻译引擎是 AI 就用它，否则 DeepSeek）" value="auto" />
+          <menuitem label="AI · OpenAI 兼容" value="ai-openai" />
+          <menuitem label="AI · DeepSeek" value="ai-deepseek" />
+          <menuitem label="AI · Anthropic Claude" value="ai-anthropic" />
+          <menuitem label="AI · Google Gemini" value="ai-gemini" />
+        </menupopup>
+      </menulist>
+    </hbox>
+    <hbox class="zst-pref-row" align="start">
+      <label control="zst-dict-ai-prompt">AI 词典提示词</label>
+      <html:textarea
+        id="zst-dict-ai-prompt"
+        class="zst-pref-textarea"
+        rows="5"
+        spellcheck="false"
+        preference="extensions.zotero.zoteroSelectionTranslator.dictionaryAiPrompt"
+      ></html:textarea>
+    </hbox>
+    <html:p class="zst-pref-note">
+      AI 词典默认要求模型返回 JSON（词性 + 中文释义 + 可选音标），界面的词性和翻译就是据此渲染的。
+      可用占位符：<html:code>${word}</html:code>、<html:code>${targetLang}</html:code>。
+      AI 输出格式偶尔不稳定，解析失败时会自动退回免费词典。
     </html:p>
   </groupbox>
 
@@ -606,7 +687,7 @@
       />
       <checkbox
         id="zst-ai-paper-context"
-        label="把论文标题和摘要作为术语上下文"
+        label="把论文标题和摘要作为术语上下文（会把标题/摘要发送给 AI 服务商）"
         native="true"
         preference="extensions.zotero.zoteroSelectionTranslator.aiUsePaperContext"
       />
@@ -653,12 +734,15 @@
   <groupbox>
     <label><html:h2>隐私与说明</html:h2></label>
     <html:p class="zst-pref-note">
-      API Key 保存在本机 Zotero 配置（prefs.js）中，不会随插件上传。请使用带额度限制的 Key。
-      划词文本只会发送给你选择的翻译服务；选择 DeepL 免费网页版时发送到 deepl.com，选择 AI 时发送到你配置的 API。
+      API Key 保存在本机 Zotero 配置（prefs.js）中，是明文存储，不会随插件上传。请使用带额度限制的 Key。
+      划词文本会发送给当前选择的翻译服务；如果开启「失败时自动尝试备用引擎」，同一段文本还会发给备用服务。
+      使用词典时只发送单个单词（牛津/Wiktionary 会额外调用一次当前翻译引擎补中文）；AI 词典只发送单词和提示词。
+      如果开启「论文标题和摘要作为术语上下文」，AI 翻译还会发送标题和摘要。
     </html:p>
     <html:p class="zst-pref-note">
-      本插件不是 DeepL 官方产品。DeepL 免费网页接口可能随时变更；如需稳定使用，请配置官方 API Key。
-      遇到 429 限流时请降低划词频率或切换引擎。
+      本插件不是 DeepL、Microsoft、Google 或有道/必应/牛津的官方产品，与这些厂商没有隶属或背书关系。
+      DeepL 免费网页接口、Google 免费接口和各网页词典都属于非官方通道，可能违反其服务条款、随时变更或失效；
+      请优先使用官方 API Key，并自行评估风险。遇到 429 限流时请降低划词频率或切换引擎。
     </html:p>
     <checkbox
       id="zst-debug"

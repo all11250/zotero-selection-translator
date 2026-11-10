@@ -47,6 +47,7 @@ async function startup({ id, version, rootURI }, reason) {
   };
 
   loadScript("content/scripts/engines.js");
+  loadScript("content/scripts/dictionary.js");
   loadScript("content/scripts/translate.js");
 
   if (!ctx.ZoteroSelectionTranslator) {

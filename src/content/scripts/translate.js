@@ -71,6 +71,51 @@ var ZoteroSelectionTranslator = (function () {
       .trim();
   }
 
+  /**
+   * Join two text fragments with exactly one ASCII space so that selections
+   * made on two different pages do not glue words together.
+   */
+  function joinText(a, b) {
+    const left = String(a == null ? "" : a).trimEnd();
+    const right = String(b == null ? "" : b).trimStart();
+    if (!left) {
+      return right;
+    }
+    if (!right) {
+      return left;
+    }
+    return `${left} ${right}`;
+  }
+
+  /**
+   * True for a selection that is a single Latin-script word. Dictionary
+   * lookup is only attempted for these; everything else uses translation.
+   * Hyphenated words and apostrophes are allowed ("state-of-the-art",
+   * "don't"), as are accents ("café").
+   */
+  function normalizeLookupWord(text) {
+    let value = String(text || "").trim();
+    if (!value) {
+      return "";
+    }
+    // Drop selection punctuation such as quotes and a trailing comma/period.
+    value = value
+      .replace(/^[\s"'“”‘’()[\]{}<>«».,;:!?、。，；：！？]+/u, "")
+      .replace(/[\s"'“”‘’()[\]{}<>«».,;:!?、。，；：！？]+$/u, "");
+    if (!value || /\s/.test(value) || value.length > 64) {
+      return "";
+    }
+    if (!/\p{Script=Latin}/u.test(value)) {
+      return "";
+    }
+    // Letters (any script) plus combining marks, apostrophes and hyphens.
+    return /^[\p{L}\p{M}'’\-]+$/u.test(value) ? value : "";
+  }
+
+  function isLookupWord(text) {
+    return !!normalizeLookupWord(text);
+  }
+
   function h(doc, tag, options) {
     options = options || {};
     const node = doc.createElement(tag);
@@ -112,8 +157,13 @@ var ZoteroSelectionTranslator = (function () {
       this.cssText = "";
       this.cache = new Map();
       this.inflight = new Map();
+      this.dictCache = new Map();
       this.annotationKeys = new Map();
       this.activePins = new Map();
+      this.dictionary =
+        typeof SelectionTranslatorDictionary !== "undefined"
+          ? SelectionTranslatorDictionary
+          : null;
       this.mainWindows = new Set();
       this.startupDone = false;
       this.host = {
@@ -178,6 +228,23 @@ var ZoteroSelectionTranslator = (function () {
       if (this.getPref("serifResultFont") === "") {
         this.setPref("serifResultFont", true);
       }
+      // 1.8.0 defaults for upgrades from older releases that predate these
+      // preferences. Zotero does not reapply defaults for existing profiles.
+      if (this.getPref("dictionaryEnabled") === "") {
+        this.setPref("dictionaryEnabled", true);
+      }
+      if (this.getPref("dictionarySource") === "") {
+        this.setPref("dictionarySource", "auto");
+      }
+      if (this.getPref("dictionaryShowDefinitions") === "") {
+        this.setPref("dictionaryShowDefinitions", true);
+      }
+      if (this.getPref("dictionaryAiEngine") === "") {
+        this.setPref("dictionaryAiEngine", "auto");
+      }
+      if (this.getPref("pinByDefault") === "") {
+        this.setPref("pinByDefault", false);
+      }
 
       this.registerPreferencePane();
       this.registerReaderEvents();
@@ -216,9 +283,10 @@ var ZoteroSelectionTranslator = (function () {
      * session data is released explicitly.
      */
     clearTranslationCache() {
-      const count = this.cache.size;
+      const count = this.cache.size + this.dictCache.size;
       this.cache.clear();
       this.inflight.clear();
+      this.dictCache.clear();
       return count;
     }
 
@@ -372,7 +440,25 @@ var ZoteroSelectionTranslator = (function () {
         // width to take effect without clipping the translation.
         const popup = state.popup;
         popup.style.maxWidth = "none";
-        if (this.getPref("autoTranslate")) {
+        // "默认置顶" pins the very first card. Defer one tick so the popup
+        // has been laid out and the pinned geometry is meaningful.
+        if (this.getPref("pinByDefault")) {
+          setTimeout(() => {
+            if (!state.destroyed && !state.pinned) {
+              this.pinPanel(state);
+            }
+          }, 0);
+        }
+        if (state.mode === "dict") {
+          // A dictionary lookup is cheap and is the whole point of selecting
+          // a single word, so it does not wait for "autoTranslate".
+          setTimeout(() => {
+            if (!state.destroyed) {
+              this.lookupDictionary(state);
+            }
+          }, 10);
+        }
+        else if (this.getPref("autoTranslate")) {
           setTimeout(() => {
             if (!state.destroyed) {
               this.runTranslation(state);
@@ -432,6 +518,11 @@ var ZoteroSelectionTranslator = (function () {
       panel.addEventListener("pointerdown", (e) => e.stopPropagation());
       panel.addEventListener("mousedown", (e) => e.stopPropagation());
 
+      const hasDictionary = typeof SelectionTranslatorDictionary !== "undefined";
+      const dictSource = hasDictionary ? this.getPref("dictionarySource") : "auto";
+      const word = normalizeLookupWord(cleanText);
+      const dictionaryEnabled =
+        !!this.getPref("dictionaryEnabled") && hasDictionary && !!word;
       const state = {
         event,
         doc,
@@ -442,7 +533,17 @@ var ZoteroSelectionTranslator = (function () {
         sourceText: rawText,
         cleanText,
         engineId,
+        mode: dictionaryEnabled ? "dict" : "translate",
+        word,
+        dictSource:
+          hasDictionary && SelectionTranslatorDictionary.sources()[dictSource]
+            ? dictSource
+            : "auto",
+        dictData: null,
+        hasDictionary,
         translation: "",
+        speakText: "",
+        speakLang: "",
         requestId: 0,
         destroyed: false,
         savedKey: "",
@@ -450,6 +551,8 @@ var ZoteroSelectionTranslator = (function () {
         fontSize,
         lineHeight,
         pinned: false,
+        continuous: false,
+        segments: [],
         handles: [],
         homeParent: null,
         homeNext: null,
@@ -460,33 +563,51 @@ var ZoteroSelectionTranslator = (function () {
       const logo = h(doc, "span", { className: "zst-logo", text: "译" });
       const engineSelect = doc.createElement("select");
       engineSelect.className = "zst-engine-select";
-      engineSelect.title = "翻译引擎（也可以在这里临时切换）";
-      for (const id of E.ENGINE_IDS) {
-        const option = doc.createElement("option");
-        option.value = id;
-        option.textContent = E.engineLabel(id);
-        if (id === engineId) {
-          option.selected = true;
-        }
-        engineSelect.appendChild(option);
-      }
+      engineSelect.title = "翻译引擎 / 词典来源（也可以在这里临时切换）";
+      this.fillModeSelect(state, engineSelect);
       engineSelect.addEventListener("change", () => {
         const next = engineSelect.value;
+        if (next === "mode:translate") {
+          this.switchMode(state, "translate");
+          return;
+        }
+        if (next === "mode:dict") {
+          this.switchMode(state, "dict");
+          return;
+        }
+        if (next.startsWith("dict:")) {
+          state.dictSource = next.slice(5);
+          this.setPref("dictionarySource", state.dictSource);
+          this.lookupDictionary(state, true);
+          return;
+        }
         if (!E.ENGINE_IDS.includes(next)) {
           return;
         }
         state.engineId = next;
         this.setPref("engine", next);
-        this.runTranslation(state, true);
+        if (state.mode === "dict") {
+          this.lookupDictionary(state, true);
+        }
+        else {
+          this.runTranslation(state, true);
+        }
       });
       engineSelect.addEventListener("pointerdown", (e) => e.stopPropagation());
 
       const refresh = h(doc, "button", {
         className: "zst-icon-btn",
         text: "↻",
-        attrs: { type: "button", title: "重新翻译", "aria-label": "重新翻译" },
+        attrs: { type: "button", title: "重新翻译 / 重新查词", "aria-label": "重新翻译" },
       });
-      refresh.addEventListener("click", () => this.runTranslation(state, true));
+      refresh.addEventListener("click", () => {
+        if (state.mode === "dict") {
+          this.lookupDictionary(state, true);
+        }
+        else {
+          this.runTranslation(state, true);
+        }
+      });
 
       const settings = h(doc, "button", {
         className: "zst-icon-btn",
@@ -572,7 +693,23 @@ var ZoteroSelectionTranslator = (function () {
 
       const resultWrap = h(doc, "div", { className: "zst-result-wrap" });
       const resultHead = h(doc, "div", { className: "zst-result-head" });
-      resultHead.append(h(doc, "span", { className: "zst-result-title", text: "译文" }));
+      const resultTitle = h(doc, "span", {
+        className: "zst-result-title",
+        text: state.mode === "dict" ? "词典" : "译文",
+      });
+      // "连续翻译" sits immediately left of the pin button. Turning it on
+      // pins the card and makes later selections append to the same card.
+      const continuous = h(doc, "button", {
+        className: "zst-cont-btn",
+        text: "连续翻译",
+        attrs: {
+          type: "button",
+          title: "连续翻译：置顶当前卡片，之后在不同位置划词会追加到同一段译文",
+          "aria-label": "连续翻译",
+          "aria-pressed": "false",
+        },
+      });
+      continuous.addEventListener("click", () => this.toggleContinuous(state));
       const pin = h(doc, "button", {
         className: "zst-pin-btn",
         text: "置顶",
@@ -584,7 +721,7 @@ var ZoteroSelectionTranslator = (function () {
         },
       });
       pin.addEventListener("click", () => this.togglePin(state));
-      resultHead.append(pin);
+      resultHead.append(resultTitle, h(doc, "span", { className: "zst-head-spacer" }), continuous, pin);
       const result = h(doc, "div", { className: "zst-result" });
       resultWrap.append(resultHead, result);
       const status = h(doc, "span", { className: "zst-status" });
@@ -649,6 +786,33 @@ var ZoteroSelectionTranslator = (function () {
       });
       commentLabel.append(comment, commentText);
 
+      const dictToggle = h(doc, "button", {
+        className: "zst-link-btn",
+        text: state.mode === "dict" ? "整句翻译" : "查词典",
+        attrs: {
+          type: "button",
+          title:
+            state.mode === "dict"
+              ? "把当前单词当作普通文本翻译"
+              : "按单词查词典（词性 + 释义）",
+        },
+      });
+      dictToggle.hidden =
+        !state.hasDictionary ||
+        !this.getPref("dictionaryEnabled") ||
+        (!state.word && state.mode !== "dict");
+      dictToggle.addEventListener("click", () => {
+        this.switchMode(state, state.mode === "dict" ? "translate" : "dict");
+      });
+
+      const clearContinuous = h(doc, "button", {
+        className: "zst-link-btn",
+        text: "清空",
+        attrs: { type: "button", title: "清空连续翻译已拼接的原文和译文" },
+      });
+      clearContinuous.hidden = true;
+      clearContinuous.addEventListener("click", () => this.clearContinuous(state));
+
       const copy = h(doc, "button", {
         className: "zst-link-btn",
         text: "复制译文",
@@ -672,13 +836,28 @@ var ZoteroSelectionTranslator = (function () {
         text: "朗读",
         attrs: { type: "button" },
       });
-      speak.addEventListener("click", () => this.speak(state));
+      speak.addEventListener("click", () =>
+        this.speak(state, state.mode === "dict" ? "us" : "")
+      );
 
       const footer = h(doc, "div", {
         className: "zst-foot",
-        children: [copy, speak, h(doc, "span", { className: "zst-foot-spacer" }), status],
+        children: [
+          dictToggle,
+          copy,
+          speak,
+          clearContinuous,
+          h(doc, "span", { className: "zst-foot-spacer" }),
+          status,
+        ],
       });
 
+      if (state.mode === "dict") {
+        // The word itself is already the dictionary heading; the source block
+        // would only duplicate it.
+        source.hidden = true;
+        panel.classList.add("zst-dict-mode");
+      }
       panel.append(header, styleRow, source, resultWrap, actionRow, commentLabel, footer);
 
       state.refs = {
@@ -692,19 +871,31 @@ var ZoteroSelectionTranslator = (function () {
         source,
         resultWrap,
         resultHead,
+        resultTitle,
+        continuous,
         pin,
         result,
         status,
         colors,
         highlight,
         underline,
+        dictToggle,
+        clearContinuous,
         copy,
         speak,
         comment,
       };
 
       this.setActionState(state, false);
-      this.setStatus(state, `${E.engineLabel(engineId)} · ${cleanText.length} 字符`);
+      if (state.mode === "dict") {
+        this.setStatus(
+          state,
+          `${SelectionTranslatorDictionary.sourceLabel(state.dictSource)} · ${state.word}`
+        );
+      }
+      else {
+        this.setStatus(state, `${E.engineLabel(engineId)} · ${cleanText.length} 字符`);
+      }
       return state;
     }
 
@@ -713,6 +904,378 @@ var ZoteroSelectionTranslator = (function () {
         ([, value]) => String(value).toLowerCase() === String(color || "").toLowerCase()
       );
       return match ? match[1] : E.ANNOTATION_COLORS[0][1];
+    }
+
+    // ------------------------------------------------------------ dictionary
+
+    fillModeSelect(state, select) {
+      if (!select) {
+        return;
+      }
+      select.replaceChildren();
+      const add = (value, text, selected) => {
+        const option = state.doc.createElement("option");
+        option.value = value;
+        option.textContent = text;
+        option.selected = !!selected;
+        select.appendChild(option);
+      };
+      if (state.mode === "dict" && state.hasDictionary) {
+        for (const source of SelectionTranslatorDictionary.sourceList()) {
+          add(`dict:${source.id}`, `词典 · ${source.label}`, source.id === state.dictSource);
+        }
+        add("mode:translate", "整句翻译（使用翻译引擎）", false);
+        select.title = "词典来源（也可以在这里临时切换）";
+      }
+      else {
+        for (const id of E.ENGINE_IDS) {
+          add(id, E.engineLabel(id), id === state.engineId);
+        }
+        select.title = "翻译引擎（也可以在这里临时切换）";
+      }
+    }
+
+    switchMode(state, mode) {
+      if (!state || state.destroyed || state.mode === mode) {
+        return;
+      }
+      if (mode === "dict" && (!state.hasDictionary || !this.getPref("dictionaryEnabled"))) {
+        return;
+      }
+      if (mode === "dict") {
+        state.word = normalizeLookupWord(state.cleanText) || state.word;
+        if (!state.word) {
+          this.setStatus(state, "这不是一个单词，无法查词典", "err");
+          return;
+        }
+      }
+      state.mode = mode;
+      state.requestId += 1;
+      state.translation = "";
+      state.dictData = null;
+      state.savedKey = "";
+      const refs = state.refs;
+      if (mode === "dict") {
+        state.continuous = false;
+        refs.continuous.hidden = true;
+        refs.continuous.classList.remove("active");
+        refs.source.hidden = true;
+        refs.resultTitle.textContent = "词典";
+        refs.dictToggle.textContent = "整句翻译";
+        state.panel.classList.add("zst-dict-mode");
+        this.fillModeSelect(state, refs.engineSelect);
+        this.lookupDictionary(state, true);
+      }
+      else {
+        refs.continuous.hidden = false;
+        refs.source.hidden = !this.getPref("showSource");
+        refs.resultTitle.textContent = "译文";
+        refs.dictToggle.textContent = "查词典";
+        state.panel.classList.remove("zst-dict-mode");
+        this.fillModeSelect(state, refs.engineSelect);
+        this.runTranslation(state, true);
+      }
+    }
+
+    dictionaryCacheKey(source, word) {
+      return `${source}\u0001${String(word || "").toLowerCase()}`;
+    }
+
+    async lookupDictionary(state, force) {
+      if (!state || state.destroyed || !state.hasDictionary) {
+        return;
+      }
+      const word = normalizeLookupWord(state.word || state.cleanText);
+      if (!word) {
+        this.setStatus(state, "这不是一个单词，无法查词典", "err");
+        return;
+      }
+      state.word = word;
+      state.requestId += 1;
+      const requestId = state.requestId;
+      const source = state.dictSource;
+      const cacheKey = this.dictionaryCacheKey(source, word);
+      this.setDictLoading(state);
+      try {
+        let data = force ? null : this.dictCache.get(cacheKey);
+        let cached = !!data;
+        if (!data) {
+          data = await this.dictionary.lookup({
+            word,
+            source,
+            doc: state.doc,
+            host: this.host,
+            engineId: state.engineId,
+            reader: state.reader,
+            paperContext: this.getPaperContext(state.reader),
+            sourceLang: this.getPref("sourceLanguage"),
+            targetLang: this.getPref("targetLanguage"),
+            // Oxford and Wiktionary only define words in English; use the
+            // user's selected translation engine to add a short Chinese
+            // gloss. Failures are ignored by the dictionary module.
+            translateWord: (text) =>
+              this.translateText({
+                text,
+                engineId: state.engineId,
+                sourceLang: this.getPref("sourceLanguage"),
+                targetLang: this.getPref("targetLanguage"),
+                reader: state.reader,
+              }).then((result) => result.translation),
+          });
+          if (data && data.word) {
+            this.dictCache.set(cacheKey, data);
+            while (this.dictCache.size > 300) {
+              this.dictCache.delete(this.dictCache.keys().next().value);
+            }
+          }
+        }
+        if (state.destroyed || requestId !== state.requestId || state.mode !== "dict") {
+          return;
+        }
+        if (!data || !data.entries || !data.entries.length) {
+          throw new Error("这个词典没有返回释义。");
+        }
+        state.dictData = data;
+        state.translation = this.dictionary.plainText(data);
+        state.speakText = data.word || word;
+        state.speakLang = "en-US";
+        this.renderDictionary(state, data);
+        this.setActionState(state, true);
+        const sourceLabel = data.sourceLabel || this.dictionary.sourceLabel(source);
+        const entryCount = data.entries.length;
+        this.setStatus(
+          state,
+          `${sourceLabel}${cached || data.cached ? " · 缓存" : ""} · ${entryCount} 组释义`,
+          "ok"
+        );
+      }
+      catch (error) {
+        if (state.destroyed || requestId !== state.requestId || state.mode !== "dict") {
+          return;
+        }
+        this.log("dictionary lookup failed", error);
+        this.setDictError(state, error);
+      }
+    }
+
+    setDictLoading(state) {
+      const doc = state.doc;
+      const result = state.refs.result;
+      const loading = h(doc, "div", { className: "zst-loading" });
+      loading.append(
+        h(doc, "span", { className: "zst-spinner" }),
+        h(doc, "span", { text: `正在查询“${state.word}”…` })
+      );
+      result.replaceChildren(loading);
+      state.refs.refresh?.classList.add("zst-spinning");
+      if (state.refs.refresh) {
+        state.refs.refresh.disabled = true;
+      }
+      this.setActionState(state, false);
+      this.setStatus(state, `${this.dictionary.sourceLabel(state.dictSource)} · 请求中…`);
+    }
+
+    setDictError(state, error) {
+      const doc = state.doc;
+      const result = state.refs.result;
+      const message = this.formatError(error);
+      const box = h(doc, "div", { className: "zst-error" });
+      box.append(
+        h(doc, "div", { className: "zst-error-title", text: "词典查询失败" }),
+        h(doc, "div", { className: "zst-error-msg", text: message })
+      );
+      const retry = h(doc, "button", {
+        className: "zst-btn",
+        text: "重试",
+        attrs: { type: "button" },
+      });
+      retry.addEventListener("click", () => this.lookupDictionary(state, true));
+      const translate = h(doc, "button", {
+        className: "zst-btn",
+        text: "改用整句翻译",
+        attrs: { type: "button" },
+      });
+      translate.addEventListener("click", () => this.switchMode(state, "translate"));
+      const actions = h(doc, "div", { className: "zst-error-actions" });
+      actions.append(retry, translate);
+      box.append(actions);
+      result.replaceChildren(box);
+      state.refs.refresh?.classList.remove("zst-spinning");
+      if (state.refs.refresh) {
+        state.refs.refresh.disabled = false;
+      }
+      this.setActionState(state, false);
+      this.setStatus(state, "词典查询失败", "err");
+    }
+
+    renderDictionary(state, data) {
+      const doc = state.doc;
+      const wrapper = h(doc, "div", { className: "zst-dict" });
+      const head = h(doc, "div", { className: "zst-dict-head" });
+      head.append(
+        h(doc, "span", { className: "zst-dict-word", text: data.word || state.word })
+      );
+      const phoneticButtons = [];
+      for (const accent of ["us", "uk"]) {
+        const ipa = data.phonetics && data.phonetics[accent];
+        const audio = data.audio && data.audio[accent];
+        if (!ipa && !audio) {
+          continue;
+        }
+        const label = accent === "us" ? "美" : "英";
+        const text = ipa ? `${label} /${ipa}/` : `${label} 发音`;
+        const button = h(doc, "button", {
+          className: "zst-phonetic-btn",
+          text,
+          attrs: {
+            type: "button",
+            title: `点击朗读${label}式发音`,
+            "aria-label": `朗读${label}式发音`,
+            "data-accent": accent,
+          },
+        });
+        button.addEventListener("click", () => this.speakWord(state, accent));
+        phoneticButtons.push(button);
+      }
+      if (phoneticButtons.length) {
+        const row = h(doc, "span", { className: "zst-phonetics" });
+        row.append(...phoneticButtons);
+        head.append(row);
+      }
+      wrapper.append(head);
+      if (data.translation) {
+        wrapper.append(
+          h(doc, "div", {
+            className: "zst-dict-translation",
+            text: data.translation,
+          })
+        );
+      }
+
+      const entries = h(doc, "div", { className: "zst-dict-entries" });
+      const showDefinitions = !!this.getPref("dictionaryShowDefinitions");
+      for (const entry of data.entries || []) {
+        const node = h(doc, "div", { className: "zst-dict-entry" });
+        const line = h(doc, "div", { className: "zst-dict-line" });
+        line.append(
+          h(doc, "span", {
+            className: "zst-dict-pos",
+            text: entry.pos || "释义",
+          })
+        );
+        const meanings = h(doc, "span", { className: "zst-dict-meanings" });
+        const terms = (entry.terms || []).filter(Boolean);
+        if (terms.length) {
+          meanings.textContent = terms.join("；");
+        }
+        else if ((entry.definitions || []).length) {
+          meanings.textContent = entry.definitions[0];
+        }
+        line.append(meanings);
+        node.append(line);
+        if (showDefinitions && (entry.definitions || []).length) {
+          const defs = h(doc, "div", { className: "zst-dict-defs" });
+          for (const def of entry.definitions.slice(0, 3)) {
+            defs.append(h(doc, "div", { className: "zst-dict-def", text: def }));
+          }
+          node.append(defs);
+        }
+        if ((entry.examples || []).length) {
+          const examples = h(doc, "div", { className: "zst-dict-examples" });
+          for (const example of entry.examples.slice(0, 2)) {
+            examples.append(
+              h(doc, "div", { className: "zst-dict-example", text: example })
+            );
+          }
+          node.append(examples);
+        }
+        entries.append(node);
+      }
+      wrapper.append(entries);
+
+      const sourceLabel = data.sourceLabel || this.dictionary.sourceLabel(state.dictSource);
+      const source = h(doc, "div", { className: "zst-dict-source" });
+      source.append(h(doc, "span", { text: `释义来源：${sourceLabel}` }));
+      if (data.sourceUrl) {
+        const link = h(doc, "button", {
+          className: "zst-link-btn zst-dict-link",
+          text: "在浏览器中打开",
+          attrs: { type: "button" },
+        });
+        link.addEventListener("click", () => {
+          try {
+            Zotero.launchURL(data.sourceUrl);
+          }
+          catch (e) {
+            this.setStatus(state, "无法打开链接", "err");
+          }
+        });
+        source.append(link);
+      }
+      if (data.note) {
+        source.append(h(doc, "span", { className: "zst-dict-note", text: data.note }));
+      }
+      wrapper.append(source);
+      state.refs.result.replaceChildren(wrapper);
+      state.refs.refresh?.classList.remove("zst-spinning");
+      if (state.refs.refresh) {
+        state.refs.refresh.disabled = false;
+      }
+    }
+
+    speakWord(state, accent) {
+      const data = state.dictData;
+      const word = (data && data.word) || state.word;
+      const audioUrl = data && data.audio && data.audio[accent];
+      const lang = accent === "uk" ? "en-GB" : "en-US";
+      if (audioUrl) {
+        try {
+          const win = state.doc.defaultView;
+          const AudioCtor = win && win.Audio;
+          if (AudioCtor) {
+            win.speechSynthesis?.cancel?.();
+            state.audioPlayer?.pause?.();
+            const player = new AudioCtor(audioUrl);
+            state.audioPlayer = player;
+            const fallback = () => this.speakText(state, word, lang);
+            player.addEventListener?.("error", fallback, { once: true });
+            const playing = player.play?.();
+            if (playing && typeof playing.catch === "function") {
+              playing.catch(fallback);
+            }
+            this.setStatus(state, `正在朗读${accent === "uk" ? "英" : "美"}式发音…`);
+            return;
+          }
+        }
+        catch (e) {
+          // Fall through to speech synthesis.
+        }
+      }
+      this.speakText(state, word, lang);
+    }
+
+    speakText(state, text, lang) {
+      const value = String(text || "").trim();
+      if (!value) {
+        this.setStatus(state, "没有可朗读的内容", "err");
+        return;
+      }
+      try {
+        const win = state.doc.defaultView;
+        const Utterance = win && win.SpeechSynthesisUtterance;
+        if (!win || !win.speechSynthesis || !Utterance) {
+          this.setStatus(state, "当前环境不支持朗读", "err");
+          return;
+        }
+        const utterance = new Utterance(value);
+        utterance.lang = lang || this.speechLang(this.getPref("targetLanguage"));
+        win.speechSynthesis.cancel();
+        win.speechSynthesis.speak(utterance);
+        this.setStatus(state, "正在朗读…");
+      }
+      catch (e) {
+        this.setStatus(state, "朗读失败", "err");
+      }
     }
 
     showTranslatePrompt(state) {
@@ -774,6 +1337,8 @@ var ZoteroSelectionTranslator = (function () {
       });
       text.dir = this.isRtl(this.getPref("targetLanguage")) ? "rtl" : "ltr";
       result.replaceChildren(text);
+      state.speakText = "";
+      state.speakLang = this.speechLang(this.getPref("targetLanguage"));
       state.refs.refresh?.classList.remove("zst-spinning");
       if (state.refs.refresh) {
         state.refs.refresh.disabled = false;
@@ -850,26 +1415,16 @@ var ZoteroSelectionTranslator = (function () {
       return ["ar", "he", "fa", "ur"].includes(String(code || "").split("-")[0]);
     }
 
-    speak(state) {
-      if (!state.translation) {
+    speak(state, accent) {
+      if (state.mode === "dict") {
+        this.speakWord(state, accent === "uk" ? "uk" : "us");
         return;
       }
-      try {
-        const win = state.doc.defaultView;
-        const Utterance = win && win.SpeechSynthesisUtterance;
-        if (!win || !win.speechSynthesis || !Utterance) {
-          this.setStatus(state, "当前环境不支持朗读", "err");
-          return;
-        }
-        const utterance = new Utterance(state.translation);
-        utterance.lang = this.speechLang(this.getPref("targetLanguage"));
-        win.speechSynthesis.cancel();
-        win.speechSynthesis.speak(utterance);
-        this.setStatus(state, "正在朗读…");
+      const text = state.speakText || state.translation;
+      if (!text) {
+        return;
       }
-      catch (e) {
-        this.setStatus(state, "朗读失败", "err");
-      }
+      this.speakText(state, text, this.speechLang(this.getPref("targetLanguage")));
     }
 
     speechLang(code) {
@@ -1032,7 +1587,7 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     async runTranslation(state, force) {
-      if (state.destroyed) {
+      if (state.destroyed || state.mode === "dict") {
         return;
       }
       if (!force && state.translation) {
@@ -1203,12 +1758,57 @@ var ZoteroSelectionTranslator = (function () {
       if (!cleanText || state.destroyed) {
         return;
       }
+
+      // A pinned dictionary card follows the same rule as the popup: single
+      // words stay in dictionary mode, longer selections become translation.
+      if (state.mode === "dict") {
+        const nextWord = normalizeLookupWord(cleanText);
+        state.doc = event.doc;
+        state.reader = event.reader;
+        state.params = params;
+        state.savedKey = "";
+        if (nextWord && this.getPref("dictionaryEnabled")) {
+          state.sourceText = rawText;
+          state.cleanText = cleanText;
+          state.word = nextWord;
+          this.flashPanel(state);
+          this.lookupDictionary(state, true);
+          return;
+        }
+        state.mode = "translate";
+        state.panel.classList.remove("zst-dict-mode");
+        state.refs.continuous.hidden = false;
+        state.refs.resultTitle.textContent = "译文";
+        state.refs.dictToggle.textContent = "查词典";
+        this.fillModeSelect(state, state.refs.engineSelect);
+      }
+
+      if (state.continuous) {
+        this.appendContinuousSelection(state, event, rawText, cleanText, params);
+        return;
+      }
+
+      const nextWord = normalizeLookupWord(cleanText);
+      if (this.getPref("dictionaryEnabled") && state.hasDictionary && nextWord) {
+        state.doc = event.doc;
+        state.reader = event.reader;
+        state.params = params;
+        state.sourceText = rawText;
+        state.cleanText = cleanText;
+        state.word = nextWord;
+        state.savedKey = "";
+        this.switchMode(state, "dict");
+        this.flashPanel(state);
+        return;
+      }
+
       state.doc = event.doc;
       state.reader = event.reader;
       state.params = params;
       state.sourceText = rawText;
       state.cleanText = cleanText;
       state.translation = "";
+      state.speakText = "";
       state.savedKey = "";
       state.requestId += 1;
 
@@ -1219,11 +1819,7 @@ var ZoteroSelectionTranslator = (function () {
         source.hidden = !this.getPref("showSource");
       }
       this.setStatus(state, `${E.engineLabel(state.engineId)} · ${cleanText.length} 字符`);
-      state.panel.classList.remove("zst-updated");
-      // Force a reflow so the same animation can replay on consecutive
-      // selections.
-      void state.panel.offsetWidth;
-      state.panel.classList.add("zst-updated");
+      this.flashPanel(state);
 
       if (this.getPref("autoTranslate")) {
         this.runTranslation(state, true);
@@ -1231,6 +1827,201 @@ var ZoteroSelectionTranslator = (function () {
       else {
         this.showTranslatePrompt(state);
       }
+    }
+
+    flashPanel(state) {
+      if (!state.panel) {
+        return;
+      }
+      state.panel.classList.remove("zst-updated");
+      // Force a reflow so the same animation can replay on consecutive
+      // selections.
+      void state.panel.offsetWidth;
+      state.panel.classList.add("zst-updated");
+    }
+
+    // ------------------------------------------------------- continuous mode
+
+    updateContinuousButton(state) {
+      const button = state.refs && state.refs.continuous;
+      if (!button) {
+        return;
+      }
+      const on = !!state.continuous;
+      button.textContent = on ? "连续中" : "连续翻译";
+      button.classList.toggle("active", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      button.title = on
+        ? "连续翻译已开启：之后的划词会追加到本卡片，点击关闭"
+        : "连续翻译：置顶当前卡片，之后在不同位置划词会追加到同一段译文";
+    }
+
+    toggleContinuous(state) {
+      if (!state || !state.panel || state.mode === "dict") {
+        return;
+      }
+      state.continuous = !state.continuous;
+      if (state.continuous) {
+        if (!state.segments.length) {
+          state.segments.push({
+            sourceText: state.sourceText,
+            cleanText: state.cleanText,
+            translation: state.translation || "",
+          });
+        }
+        if (!state.pinned) {
+          this.pinPanel(state);
+        }
+        if (state.refs.clearContinuous) {
+          state.refs.clearContinuous.hidden = false;
+        }
+        this.setStatus(state, "连续翻译已开启：在别处继续划词会追加到本卡片", "ok");
+      }
+      else {
+        if (state.refs.clearContinuous) {
+          state.refs.clearContinuous.hidden = true;
+        }
+        this.setStatus(state, "连续翻译已关闭", "");
+      }
+      this.updateContinuousButton(state);
+    }
+
+    async appendContinuousSelection(state, event, rawText, cleanText, params) {
+      const previousSource = state.sourceText;
+      const previousClean = state.cleanText;
+      const last = state.segments[state.segments.length - 1];
+      if (last && last.cleanText === cleanText) {
+        this.flashPanel(state);
+        this.setStatus(state, "这段内容已经在卡片中", "ok");
+        return;
+      }
+
+      state.doc = event.doc;
+      state.reader = event.reader;
+      state.params = params;
+      state.savedKey = "";
+      state.sourceText = joinText(previousSource, rawText);
+      state.cleanText = joinText(previousClean, cleanText);
+      state.requestId += 1;
+      const requestId = state.requestId;
+
+      const source = state.refs.source;
+      if (source) {
+        source.textContent = state.sourceText;
+        source.title = `${state.sourceText}\n\n可滚动查看全文；拖动右下角可调整高度。`;
+        source.hidden = !this.getPref("showSource");
+      }
+      this.flashPanel(state);
+      this.setStatus(
+        state,
+        `连续翻译 · 第 ${state.segments.length + 1} 段 · 正在追加…`
+      );
+
+      const hadTranslation = !!String(state.translation || "").trim();
+      try {
+        if (!hadTranslation) {
+          // The first selection was never translated (auto translate off, or
+          // the card had been cleared). Translate the joined text once so the
+          // card never shows source text without a matching translation.
+          const combined = await this.translateText({
+            text: state.cleanText,
+            engineId: state.engineId,
+            sourceLang: this.getPref("sourceLanguage"),
+            targetLang: this.getPref("targetLanguage"),
+            reader: state.reader,
+          });
+          if (state.destroyed || requestId !== state.requestId) {
+            return;
+          }
+          state.segments = [
+            {
+              sourceText: state.sourceText,
+              cleanText: state.cleanText,
+              translation: combined.translation,
+              engine: combined.engine,
+            },
+          ];
+          state.translation = combined.translation;
+          state.speakText = "";
+          this.setResult(state, state.translation, combined);
+          this.setStatus(
+            state,
+            `连续 ${state.segments.length} 段 · ${E.engineLabel(combined.engine)} · ${state.translation.length} 字符`,
+            "ok"
+          );
+          const combinedNode = state.refs.result;
+          if (combinedNode) {
+            combinedNode.scrollTop = combinedNode.scrollHeight;
+          }
+          return;
+        }
+        const result = await this.translateText({
+          text: cleanText,
+          engineId: state.engineId,
+          sourceLang: this.getPref("sourceLanguage"),
+          targetLang: this.getPref("targetLanguage"),
+          reader: state.reader,
+        });
+        if (state.destroyed || requestId !== state.requestId) {
+          return;
+        }
+        const piece = result.translation;
+        state.segments.push({
+          sourceText: rawText,
+          cleanText,
+          translation: piece,
+          engine: result.engine,
+        });
+        state.translation = joinText(state.translation, piece);
+        state.speakText = "";
+        this.setResult(state, state.translation, result);
+        this.setStatus(
+          state,
+          `连续 ${state.segments.length} 段 · ${E.engineLabel(result.engine)} · ${state.translation.length} 字符`,
+          "ok"
+        );
+        const resultNode = state.refs.result;
+        if (resultNode) {
+          resultNode.scrollTop = resultNode.scrollHeight;
+        }
+      }
+      catch (error) {
+        if (state.destroyed || requestId !== state.requestId) {
+          return;
+        }
+        this.log("continuous append failed", error);
+        // Roll the appended source back so the card stays consistent with
+        // what has actually been translated.
+        state.sourceText = previousSource;
+        state.cleanText = previousClean;
+        if (source) {
+          source.textContent = previousSource;
+        }
+        this.setStatus(state, `追加翻译失败：${this.formatError(error)}`, "err");
+      }
+    }
+
+    clearContinuous(state) {
+      if (!state || state.mode !== "translate" || !state.continuous) {
+        return;
+      }
+      state.segments = [];
+      state.translation = "";
+      state.speakText = "";
+      state.sourceText = "";
+      state.cleanText = "";
+      state.savedKey = "";
+      state.requestId += 1;
+      state.refs.source.textContent = "";
+      state.refs.source.title = "";
+      const doc = state.doc;
+      const prompt = h(doc, "div", { className: "zst-prompt" });
+      prompt.append(
+        h(doc, "span", { className: "zst-prompt-text", text: "已清空，继续划词即可开始新的连续翻译" })
+      );
+      state.refs.result.replaceChildren(prompt);
+      this.setActionState(state, false);
+      this.setStatus(state, "已清空连续翻译内容", "");
     }
 
     togglePin(state) {
@@ -1315,15 +2106,33 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     beginDrag(state, event) {
-      if (!state.pinned || event.button !== 0) {
+      if (
+        !state.pinned ||
+        state.resizing ||
+        state.dragging ||
+        event.button !== 0 ||
+        Date.now() < (state.suppressDragUntil || 0)
+      ) {
         return;
       }
       const target = event.target;
       if (
         target &&
         target.closest &&
-        target.closest("button, select, input, textarea, a, label")
+        target.closest(
+          "button, select, input, textarea, a, label, .zst-resize-handle"
+        )
       ) {
+        return;
+      }
+      // A pointerdown close to the left corners belongs to the (larger)
+      // resize hit zones. Without this guard a slightly missed corner drag
+      // would move the whole card instead of resizing it.
+      const dragRect = state.panel.getBoundingClientRect();
+      const dx0 = event.clientX - dragRect.left;
+      const dy0 = event.clientY - dragRect.top;
+      const corner = 26;
+      if (dx0 <= corner && (dy0 <= corner || dy0 >= dragRect.height - corner)) {
         return;
       }
       event.preventDefault();
@@ -1405,8 +2214,12 @@ var ZoteroSelectionTranslator = (function () {
             "aria-hidden": "true",
           },
         });
-        handle.addEventListener("pointerdown", (event) =>
-          this.beginResize(state, dir, event)
+        // Capture phase: resize must win over any drag handler on an
+        // ancestor, otherwise pressing a corner can move the whole card.
+        handle.addEventListener(
+          "pointerdown",
+          (event) => this.beginResize(state, dir, event),
+          true
         );
         panel.appendChild(handle);
         state.handles.push(handle);
@@ -1414,8 +2227,13 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     beginResize(state, dir, event) {
+      if (state.resizing || state.dragging) {
+        return;
+      }
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
+      // Also keep the header drag handler from starting on this gesture.
+      state.suppressDragUntil = Date.now() + 600;
       const win = state.doc.defaultView;
       const panel = state.panel;
       const rect = panel.getBoundingClientRect();

@@ -17,10 +17,25 @@ pref(P + "fontSize", "14");
 pref(P + "lineHeight", "1.65");
 pref(P + "serifResultFont", true);
 pref(P + "popupWidth", "380");
-pref(P + "fallbackEnabled", true);
+pref(P + "fallbackEnabled", false);
 pref(P + "fallbackEngine", "mymemory");
 pref(P + "showToolbarButton", true);
 pref(P + "showSidebarButton", true);
+pref(P + "pinByDefault", false);
+
+pref(P + "dictionaryEnabled", true);
+pref(P + "dictionarySource", "auto");
+pref(P + "dictionaryShowDefinitions", true);
+pref(P + "dictionaryAiEngine", "auto");
+pref(
+  P + "dictionaryAiPrompt",
+  "You are a concise bilingual dictionary. For the English word \"${word}\", return ONLY a JSON object " +
+    "with this exact schema: " +
+    "{\"word\":\"${word}\",\"phonetic_us\":\"IPA or empty\",\"phonetic_uk\":\"IPA or empty\"," +
+    "\"entries\":[{\"pos\":\"part of speech in abbreviated form\",\"meanings\":[\"Chinese meaning 1\",\"Chinese meaning 2\"]}]}. " +
+    "Use 1-3 entries ordered by frequency, at most 4 Chinese meanings per entry, no examples, no markdown, no commentary. " +
+    "If the word is unknown, return {\"word\":\"${word}\",\"entries\":[]}."
+);
 
 pref(P + "deeplApiKey", "");
 pref(P + "deeplWebVersion", "26.52");
@@ -60,7 +75,7 @@ pref(P + "geminiModel", "gemini-2.0-flash");
 pref(P + "geminiTemperature", "0.2");
 
 pref(P + "aiMaxTokens", "2048");
-pref(P + "aiUsePaperContext", true);
+pref(P + "aiUsePaperContext", false);
 pref(P + "openaiExtraHeaders", "{}");
 pref(
   P + "aiSystemPrompt",

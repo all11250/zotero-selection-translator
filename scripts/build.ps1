@@ -59,6 +59,7 @@ try {
     "bootstrap.js",
     "prefs.js",
     "content/scripts/engines.js",
+    "content/scripts/dictionary.js",
     "content/scripts/translate.js",
     "content/preferences.xhtml",
     "content/"

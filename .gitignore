@@ -3,6 +3,11 @@ build/
 dist/*.xpi
 dist/SHA256SUMS.txt
 
+# Isolated Zotero test profiles / generated fixtures
+_test*/
+_test-*/
+*.test-profile/
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
