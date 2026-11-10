@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const manifest = JSON.parse(read("src/manifest.json"));
 assert.equal(manifest.manifest_version, 2);
-assert.ok(manifest.version.startsWith("1.8."), "unexpected version " + manifest.version);
+assert.equal(manifest.version, "1.8.1-beta");
 const zotero = manifest.applications?.zotero;
 assert.ok(zotero, "applications.zotero missing");
 assert.equal(zotero.id, "selection-translator@zotero.local");
@@ -31,6 +31,22 @@ assert.ok(translate.includes("renderSidebarAnnotationHeader"));
 assert.ok(translate.includes("saveFromJSON"));
 assert.ok(translate.includes("ensureReaderStyles"));
 assert.ok(translate.includes("zst-save-btn"));
+for (const feature of [
+  "autoSizePanel",
+  "scheduleContinuousTranslation",
+  "runContinuousTranslation",
+  "clearContent",
+  "playAudioBlob",
+  "beginSpeechStatus",
+  "manualSize",
+  "CONTINUOUS_DEBOUNCE_MS",
+]) {
+  assert.ok(translate.includes(feature), `missing 1.8.1 feature ${feature}`);
+}
+assert.ok(
+  !translate.includes("state.translation = joinText(state.translation, piece)"),
+  "continuous mode must not append independent translations"
+);
 assert.ok(!translate.includes("runSelfTest"), "self-test hook leaked into release");
 assert.ok(!bootstrap.includes("selftest"), "self-test loader leaked into release");
 assert.ok(
@@ -126,9 +142,19 @@ assert.ok(translate.includes("toggleContinuous"));
 assert.ok(translate.includes("pinByDefault"));
 assert.ok(translate.includes("joinText"));
 assert.ok(translate.includes("dictionaryEnabled"));
+assert.ok(css.includes("align-items: center"));
+assert.ok(translate.includes("第三方非官方插件"));
+
+const prefsCss = read("src/content/styles/preferences.css");
+assert.ok(prefsCss.includes(".zst-disclaimer"));
+assert.ok(prefsCss.includes(".zst-disclaimer-title"));
 
 const prefsXhtml = read("src/content/preferences.xhtml");
 assert.ok(prefsXhtml.includes("zst-clear-cache"));
+assert.ok(prefsXhtml.includes('id="zst-disclaimer"'));
+assert.ok(prefsXhtml.includes("重要声明与免责声明"));
+assert.ok(prefsXhtml.includes("仅供个人学习"));
+assert.ok(prefsXhtml.includes("承担责任"));
 for (const key of [
   "extensions.zotero.zoteroSelectionTranslator.engine",
   "extensions.zotero.zoteroSelectionTranslator.annotationComment",

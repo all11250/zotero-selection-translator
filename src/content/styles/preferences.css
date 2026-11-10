@@ -22,6 +22,34 @@
   opacity: 0.9;
 }
 
+/* Prominent legal / compliance disclaimer at the top of the pane. */
+.zst-disclaimer {
+  margin: 0 0 14px;
+  padding: 10px 12px 8px;
+  border: 2px solid rgba(180, 83, 9, 0.75);
+  border-radius: 8px;
+  background: rgba(180, 83, 9, 0.14);
+  color: var(--fill-primary, #222);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.zst-disclaimer-title {
+  margin-bottom: 4px;
+  color: #b45309;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.zst-disclaimer p {
+  margin: 4px 0;
+}
+
+.zst-disclaimer strong {
+  color: #b45309;
+  font-weight: 700;
+}
+
 .zst-pref-note {
   max-width: 760px;
   margin: 2px 0 8px;

@@ -75,6 +75,9 @@
 }
 
 .zst-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
   padding: 0;
@@ -84,6 +87,7 @@
   color: var(--zst-muted);
   font-size: 15px;
   line-height: 1;
+  text-align: center;
   cursor: pointer;
   flex: 0 0 auto;
 }
@@ -100,9 +104,14 @@
 }
 
 .zst-aa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  line-height: 1;
 }
 
 .zst-style-row {

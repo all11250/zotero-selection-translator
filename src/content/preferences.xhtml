@@ -3,6 +3,35 @@
   class="zst-prefpane"
   flex="1"
 >
+  <html:div id="zst-disclaimer" class="zst-disclaimer">
+    <html:div class="zst-disclaimer-title">⚠ 仅供学习使用 · 重要声明与免责声明（请先阅读）</html:div>
+    <html:p>
+      <html:strong>本插件仅供个人学习、研究和技术交流使用。</html:strong>
+      严禁将本插件用于任何损害他人或单位合法权益、侵犯知识产权、违反法律法规或第三方服务条款的用途；
+      如需商用，请自行取得所有相关权利方的授权。作者不提供任何商业授权、质量保证或合规背书。
+    </html:p>
+    <html:p>
+      本插件是独立第三方开源工具，与 DeepL、Google、Microsoft、有道、必应、牛津等任何厂商均
+      <html:strong>无隶属、合作、赞助或背书关系</html:strong>，也未获得其授权。
+    </html:p>
+    <html:p>
+      插件中的 <html:strong>DeepL 免费网页版、Google 免费接口，以及必应/有道/牛津网页词典</html:strong>
+      均属于非官方通道或网页读取，可能违反第三方服务条款，并可能随时失效、限流，或导致账号/IP 受限。
+      请优先配置并使用官方 API；需要商用或稳定服务时，请自行购买相应授权。
+    </html:p>
+    <html:p>
+      请在遵守所在国家/地区法律、所在机构规定以及第三方服务条款的前提下使用本插件。
+      <html:strong>请勿使用本插件处理机密、敏感或个人隐私数据</html:strong>；正式学术引用、公开发布或商业使用前，
+      请自行核验译文、词典释义与 AI 输出，并自行取得必要授权。
+    </html:p>
+    <html:p>
+      <html:strong>在适用法律允许的最大范围内，插件作者及贡献者不对因使用或无法使用本插件而产生的任何直接或间接损失、
+      数据丢失、账号封禁、服务中断、译文/词典/AI 结果错误、版权或合规问题承担责任。</html:strong>
+      本插件按“现状”提供，不附带任何明示或默示担保。继续使用即表示你已阅读、理解并同意自行承担相关风险；
+      如不同意，请停止使用并卸载本插件。
+    </html:p>
+  </html:div>
+
   <groupbox>
     <label><html:h2>基本设置</html:h2></label>
     <html:p class="zst-pref-note">
@@ -289,6 +318,10 @@
       可能限流或随 DeepL 更新失效。需要稳定服务时，请申请 DeepL API Free Key 并选择 “DeepL API”。
       在 <html:a href="https://www.deepl.com/zh/pro-api">deepl.com/pro-api</html:a> 注册。
     </html:p>
+    <html:p class="zst-pref-note">
+      <html:strong>风险提示：</html:strong>“DeepL 免费网页版”属于非官方接口，可能违反 DeepL 的服务条款，
+      也可能随时失效或导致 IP 受限。作者不对使用该接口产生的任何后果负责；如介意，请改用 DeepL 官方 API。
+    </html:p>
     <hbox class="zst-pref-row" align="center">
       <label control="zst-deepl-key">DeepL API Key</label>
       <html:input
@@ -372,6 +405,8 @@
       自动模式会依次回退。它们都是<strong>非官方读取</strong>，可能违反对应网站的服务条款，
       仅供个人学习/研究使用：请保持低频、不要批量抓取，并保留界面中的来源链接与商标。
       词典数据版权归各词典所有；需要商用或稳定服务请购买对应词典的授权 API。
+      <html:strong>作者不对词典内容、可用性、准确性或由此产生的合规问题承担责任。</html:strong>
+      词典查询仅供个人学习研究使用，不构成对词典内容的再分发授权，严禁用于批量抓取、商业再分发或损害词典方利益。
     </html:p>
     <html:hr />
     <hbox class="zst-pref-row" align="center">
@@ -502,6 +537,8 @@
     <html:p class="zst-pref-note">
       支持四种接口：OpenAI 兼容（OpenAI、通义千问、Kimi、硅基流动、Ollama、LM Studio 等）、
       DeepSeek 专属、Anthropic Claude、Google Gemini。AI 译文会经过学术翻译提示词处理，并可附带论文标题/摘要作为术语上下文。
+      <html:strong>AI 译文、AI 词典结果可能出错或产生不实内容，仅供参考；API 费用、数据外发和合规责任由使用者自行承担。</html:strong>
+      严禁利用 AI 输出从事任何损害他人或单位合法权益、侵犯知识产权或违反法律法规的活动。
     </html:p>
 
     <html:h3 class="zst-pref-subhead">OpenAI 兼容接口</html:h3>
@@ -743,6 +780,12 @@
       本插件不是 DeepL、Microsoft、Google 或有道/必应/牛津的官方产品，与这些厂商没有隶属或背书关系。
       DeepL 免费网页接口、Google 免费接口和各网页词典都属于非官方通道，可能违反其服务条款、随时变更或失效；
       请优先使用官方 API Key，并自行评估风险。遇到 429 限流时请降低划词频率或切换引擎。
+    </html:p>
+    <html:p class="zst-pref-note">
+      <html:strong>免责声明：</html:strong>本插件仅供个人学习、研究和技术交流使用，按“现状”提供，不提供任何明示或默示担保。
+      严禁用于任何损害他人或单位合法权益、侵犯知识产权、违反法律法规或第三方服务条款的用途。
+      在适用法律允许的最大范围内，作者及贡献者不对因使用本插件导致的任何直接或间接损失、数据丢失、账号封禁、
+      服务中断、内容错误或合规问题承担责任。请谨慎使用，并在处理敏感数据、商用或正式发表前自行核验并取得必要授权。
     </html:p>
     <checkbox
       id="zst-debug"
