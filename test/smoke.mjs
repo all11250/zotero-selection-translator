@@ -194,7 +194,7 @@ assert.match(chromeFontRule[1], /"Times New Roman"/);
 assert.match(chromeFontRule[1], /"SimSun"/);
 assert.match(css, /\.zst-result-title\s*\{[^}]*font-size:\s*12px/);
 assert.match(css, /\.zst-pin-btn,[\s\S]*?font-size:\s*12px/);
-assert.match(css, /\.zst-link-btn\s*\{[^}]*font-size:\s*10px/);
+assert.match(css, /\.zst-link-btn\s*\{[^}]*font-size:\s*12px/);
 assert.ok(css.includes("--zst-panel-bg"));
 assert.ok(css.includes(".zst-status"));
 assert.ok(translate.includes("content/scripts/preferences.js"));
