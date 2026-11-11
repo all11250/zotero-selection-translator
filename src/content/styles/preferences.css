@@ -86,7 +86,10 @@
 }
 
 .zst-disclaimer.zst-disclaimer-collapsed {
-  padding: 6px 10px 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
 }
 
 .zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-title,
@@ -95,11 +98,17 @@
 }
 
 .zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-summary {
+  flex: 1 1 auto;
+  min-width: 0;
   display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-foot {
-  margin-top: 3px;
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .zst-pref-note {

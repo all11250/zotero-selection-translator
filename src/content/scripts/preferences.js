@@ -34,7 +34,7 @@
 
   function apply(card, button, collapsed) {
     card.classList.toggle(COLLAPSED_CLASS, collapsed);
-    button.textContent = collapsed ? "收起" : "我已知晓";
+    button.textContent = collapsed ? "展开" : "我已知晓";
     button.title = collapsed
       ? "展开完整的免责声明"
       : "我已阅读并知晓，收起免责声明";

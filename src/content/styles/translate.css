@@ -29,6 +29,18 @@
   box-sizing: border-box;
 }
 
+/* Card chrome typography, part of the card theme itself.
+ * Every button inside the card and the engine selector always use the fixed
+ * Songti / Times New Roman face. This is intentionally independent from the
+ * "serifResultFont" preference, which only styles translation/dictionary
+ * results and can be toggled off without changing these controls. */
+.zst-panel button,
+.zst-panel select,
+.zst-panel select option {
+  font-family: "Times New Roman", "SimSun", "宋体", "Songti SC", "STSong",
+    "Noto Serif CJK SC", serif;
+}
+
 .zst-head {
   display: flex;
   align-items: center;

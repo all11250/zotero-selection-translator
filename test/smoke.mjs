@@ -56,6 +56,7 @@ for (const feature of [
 assert.ok(!translate.includes("🐋"), "theme icons must not be emoji");
 assert.ok(!translate.includes("🪵"), "theme icons must not be emoji");
 assert.ok(preferencesJs.includes("我已知晓"));
+assert.ok(preferencesJs.includes('collapsed ? "展开" : "我已知晓"'));
 assert.ok(
   !translate.includes("state.translation = joinText(state.translation, piece)"),
   "continuous mode must not append independent translations"
@@ -173,17 +174,42 @@ assert.ok(translate.includes("第三方非官方插件"));
 assert.ok(css.includes(".zst-theme-btn"));
 assert.ok(css.includes(".zst-engine-resizer"));
 assert.ok(css.includes(".zst-panel.zst-serif-font .zst-dict-meanings"));
+const chromeFontRule = css.match(
+  /\.zst-panel button,[\s\S]*?\.zst-panel select option \{[\s\S]*?font-family:\s*([^;]+);/
+);
+assert.ok(chromeFontRule, "card buttons and engine select must have a font rule");
+assert.ok(
+  !chromeFontRule[0].includes("zst-serif-font"),
+  "card button font must be independent of the result-font toggle"
+);
+assert.match(chromeFontRule[1], /"Times New Roman"/);
+assert.match(chromeFontRule[1], /"SimSun"/);
 assert.ok(css.includes("--zst-panel-bg"));
 assert.ok(css.includes(".zst-status"));
 assert.ok(translate.includes("content/scripts/preferences.js"));
 assert.ok(translate.includes("registerThemeObservers"));
 assert.ok(translate.includes("resolveThemeId"));
+assert.ok(translate.includes('Zotero.Prefs.registerObserver("browser.theme.toolbar-theme"'));
+assert.ok(translate.includes('Zotero.Prefs.registerObserver("reader.lightTheme", handler)'));
+assert.ok(translate.includes('Zotero.Prefs.get(dark ? "reader.darkTheme" : "reader.lightTheme")'));
+assert.ok(
+  !translate.includes('Zotero.Prefs.get("reader.darkTheme", true)'),
+  "reader theme prefs must not be read from the global branch"
+);
 
 const prefsCss = read("src/content/styles/preferences.css");
 assert.ok(prefsCss.includes(".zst-disclaimer"));
 assert.ok(prefsCss.includes(".zst-disclaimer-title"));
 assert.ok(prefsCss.includes(".zst-disclaimer-toggle"));
 assert.ok(prefsCss.includes(".zst-disclaimer-collapsed"));
+assert.ok(
+  /\.zst-disclaimer\.zst-disclaimer-collapsed\s*\{[^}]*display:\s*flex/.test(prefsCss),
+  "collapsed disclaimer must put the expand button on the summary row"
+);
+assert.match(
+  prefsCss,
+  /\.zst-disclaimer\.zst-disclaimer-collapsed \.zst-disclaimer-summary\s*\{[^}]*text-overflow:\s*ellipsis/
+);
 
 const prefsXhtml = read("src/content/preferences.xhtml");
 assert.ok(prefsXhtml.includes("zst-clear-cache"));

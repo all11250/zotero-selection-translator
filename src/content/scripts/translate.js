@@ -430,13 +430,22 @@ var ZoteroSelectionTranslator = (function () {
         this.themeObserverSymbols.push(
           Zotero.Prefs.registerObserver(prefKey("theme"), handler, true)
         );
-        // Follow Zotero's reader theme prefs when "跟随系统 / Zotero 主题"
-        // is selected. This is a single handler for all live cards.
+        // Reader theme prefs are under extensions.zotero.*, so they must be
+        // registered on Zotero's branch (no global flag).
         this.themeObserverSymbols.push(
-          Zotero.Prefs.registerObserver("reader.lightTheme", handler, true)
+          Zotero.Prefs.registerObserver("reader.lightTheme", handler)
         );
         this.themeObserverSymbols.push(
-          Zotero.Prefs.registerObserver("reader.darkTheme", handler, true)
+          Zotero.Prefs.registerObserver("reader.darkTheme", handler)
+        );
+        // Zotero's own appearance setting lives on the root branch:
+        // 0 = dark, 1 = light, 2 = follow system. Watching these makes an
+        // already-pinned card follow a Zotero theme change immediately.
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver("browser.theme.toolbar-theme", handler, true)
+        );
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver("browser.theme.content-theme", handler, true)
         );
       }
       catch (e) {
@@ -461,6 +470,7 @@ var ZoteroSelectionTranslator = (function () {
         return pref;
       }
       let dark = false;
+      let schemeKnown = false;
       let themeId = "";
       try {
         const internal = state && state.reader && state.reader._internalReader;
@@ -471,35 +481,59 @@ var ZoteroSelectionTranslator = (function () {
           const scheme = internal.getColorScheme();
           if (scheme === "dark" || scheme === "light") {
             dark = scheme === "dark";
+            schemeKnown = true;
           }
         }
       }
       catch (e) {
         // Fall back to prefs / media query.
       }
-      const normalized = this.normalizeThemeId(themeId);
-      if (normalized) {
-        return normalized;
+      const rawThemeId = String(themeId || "").trim();
+      if (rawThemeId) {
+        const normalized = this.normalizeThemeId(rawThemeId);
+        if (normalized) {
+          return normalized;
+        }
       }
+      // Zotero's appearance setting is the source of truth for light/dark.
+      // browser.theme.toolbar-theme: 0 = dark, 1 = light, 2 = follow system.
+      // For "follow system" (2) the reader iframe's media query is used
+      // below, because content-theme may lag behind the actual UI scheme.
       try {
-        const docWin = state && state.doc && state.doc.defaultView;
-        if (docWin && typeof docWin.matchMedia === "function") {
-          dark = docWin.matchMedia("(prefers-color-scheme: dark)").matches;
+        const appTheme = Zotero.Prefs.get("browser.theme.toolbar-theme", true);
+        if (appTheme === 0 || appTheme === 1) {
+          dark = appTheme === 0;
+          schemeKnown = true;
         }
       }
       catch (e) {
-        // Keep the color scheme inferred above.
+        // Fall back to the media query.
+      }
+      if (!schemeKnown) {
+        try {
+          const docWin = state && state.doc && state.doc.defaultView;
+          if (docWin && typeof docWin.matchMedia === "function") {
+            dark = docWin.matchMedia("(prefers-color-scheme: dark)").matches;
+          }
+        }
+        catch (e) {
+          // Keep the color scheme inferred above.
+        }
       }
       let id = "";
       try {
-        id = dark
-          ? Zotero.Prefs.get("reader.darkTheme", true)
-          : Zotero.Prefs.get("reader.lightTheme", true);
+        // Reader theme prefs live under extensions.zotero.*, not on the root
+        // branch, so they must be read without the global flag.
+        id = Zotero.Prefs.get(dark ? "reader.darkTheme" : "reader.lightTheme");
       }
       catch (e) {
         // Ignore.
       }
-      return this.normalizeThemeId(id) || (dark ? "dark" : "original");
+      const raw = String(id || "").trim();
+      if (!raw) {
+        return dark ? "dark" : "original";
+      }
+      return this.normalizeThemeId(raw) || (dark ? "dark" : "original");
     }
 
     applyThemeToPanel(panel, themeId) {
