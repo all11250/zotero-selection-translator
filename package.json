@@ -1,8 +1,8 @@
 {
   "name": "zotero-selection-translator",
-  "version": "1.8.2-beta",
+  "version": "1.8.2",
   "private": true,
-  "description": "Zotero 7+ selection translator with DeepL free web endpoint, multiple engines, AI APIs, and annotation comments.",
+  "description": "Zotero 7+ selection translator with multiple engines, AI APIs, dictionary lookup, themes, and annotation comments.",
   "scripts": {
     "validate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate.ps1",
     "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",

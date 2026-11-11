@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const manifest = JSON.parse(read("src/manifest.json"));
 assert.equal(manifest.manifest_version, 2);
-assert.equal(manifest.version, "1.8.2-beta");
+assert.equal(manifest.version, "1.8.2");
 const zotero = manifest.applications?.zotero;
 assert.ok(zotero, "applications.zotero missing");
 assert.equal(zotero.id, "selection-translator@zotero.local");
