@@ -175,15 +175,21 @@ assert.ok(css.includes(".zst-theme-btn"));
 assert.ok(css.includes(".zst-engine-resizer"));
 assert.ok(css.includes(".zst-panel.zst-serif-font .zst-dict-meanings"));
 const chromeFontRule = css.match(
-  /\.zst-panel button,[\s\S]*?\.zst-panel select option \{[\s\S]*?font-family:\s*([^;]+);/
+  /\.zst-panel button,[\s\S]*?font-family:\s*([^;]+);/
 );
 assert.ok(chromeFontRule, "card buttons and engine select must have a font rule");
 assert.ok(
   !chromeFontRule[0].includes("zst-serif-font"),
   "card button font must be independent of the result-font toggle"
 );
+assert.ok(
+  chromeFontRule[0].includes(".zst-panel .zst-check"),
+  "comment checkbox label must use the fixed card font"
+);
 assert.match(chromeFontRule[1], /"Times New Roman"/);
 assert.match(chromeFontRule[1], /"SimSun"/);
+assert.match(css, /\.zst-result-title\s*\{[^}]*font-size:\s*12px/);
+assert.match(css, /\.zst-pin-btn,[\s\S]*?font-size:\s*12px/);
 assert.ok(css.includes("--zst-panel-bg"));
 assert.ok(css.includes(".zst-status"));
 assert.ok(translate.includes("content/scripts/preferences.js"));

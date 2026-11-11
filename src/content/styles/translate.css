@@ -36,7 +36,8 @@
  * results and can be toggled off without changing these controls. */
 .zst-panel button,
 .zst-panel select,
-.zst-panel select option {
+.zst-panel select option,
+.zst-panel .zst-check {
   font-family: "Times New Roman", "SimSun", "宋体", "Songti SC", "STSong",
     "Noto Serif CJK SC", serif;
 }
@@ -261,21 +262,21 @@
 
 .zst-result-title {
   color: var(--zst-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 .zst-pin-btn,
 .zst-cont-btn {
-  height: 20px;
-  padding: 0 7px;
+  height: 23px;
+  padding: 0 9px;
   border: 1px solid var(--zst-border);
   border-radius: 5px;
   background: var(--zst-bg);
   color: var(--zst-muted);
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
   cursor: pointer;
   flex: 0 0 auto;
