@@ -37,7 +37,8 @@
 .zst-panel button,
 .zst-panel select,
 .zst-panel select option,
-.zst-panel .zst-check {
+.zst-panel .zst-check,
+.zst-panel .zst-status {
   font-family: "Times New Roman", "SimSun", "宋体", "Songti SC", "STSong",
     "Noto Serif CJK SC", serif;
 }
@@ -715,7 +716,7 @@
   background: transparent;
   color: var(--zst-accent);
   font: inherit;
-  font-size: 12px;
+  font-size: 10px;
   cursor: pointer;
 }
 
