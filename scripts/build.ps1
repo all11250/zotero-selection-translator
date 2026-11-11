@@ -60,6 +60,7 @@ try {
     "prefs.js",
     "content/scripts/engines.js",
     "content/scripts/dictionary.js",
+    "content/scripts/preferences.js",
     "content/scripts/translate.js",
     "content/preferences.xhtml",
     "content/"

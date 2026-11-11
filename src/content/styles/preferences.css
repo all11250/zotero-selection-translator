@@ -50,6 +50,58 @@
   font-weight: 700;
 }
 
+.zst-disclaimer-summary {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.zst-disclaimer-body {
+  margin-top: 2px;
+}
+
+.zst-disclaimer-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.zst-disclaimer-toggle {
+  min-width: 76px;
+  padding: 3px 12px;
+  border: 1px solid rgba(180, 83, 9, 0.7);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.35);
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.zst-disclaimer-toggle:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.zst-disclaimer:not(.zst-disclaimer-collapsed) .zst-disclaimer-summary {
+  display: none;
+}
+
+.zst-disclaimer.zst-disclaimer-collapsed {
+  padding: 6px 10px 5px;
+}
+
+.zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-title,
+.zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-body {
+  display: none;
+}
+
+.zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-summary {
+  display: block;
+}
+
+.zst-disclaimer.zst-disclaimer-collapsed .zst-disclaimer-foot {
+  margin-top: 3px;
+}
+
 .zst-pref-note {
   max-width: 760px;
   margin: 2px 0 8px;

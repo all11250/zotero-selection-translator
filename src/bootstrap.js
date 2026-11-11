@@ -57,6 +57,8 @@ async function startup({ id, version, rootURI }, reason) {
   await ctx.ZoteroSelectionTranslator.startup({ id, version, rootURI });
 
 
+
+
 }
 
 async function onMainWindowLoad({ window }, reason) {

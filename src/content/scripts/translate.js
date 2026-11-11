@@ -15,11 +15,99 @@ var ZoteroSelectionTranslator = (function () {
   const E = SelectionTranslatorEngines;
   const PREF_PREFIX = "extensions.zotero.zoteroSelectionTranslator.";
   const PLUGIN_NAME = "划词翻译";
-  const CACHE_LIMIT = 200;
+  const CACHE_LIMIT = 120;
+  const DICT_CACHE_LIMIT = 150;
   // Wait for the selection gesture to settle before sending the joined text.
   // A user often selects several fragments quickly; only the final merge is
   // sent, so the engine sees one coherent paragraph.
   const CONTINUOUS_DEBOUNCE_MS = 650;
+  const ENGINE_SELECT_MIN_WIDTH = 96;
+
+  // Colors mirror Zotero's reader themes (original/light, dark, black, snow,
+  // sepia). Only CSS custom properties are changed at runtime, which keeps
+  // theme switching cheap and does not retain any DOM per theme.
+  const THEME_IDS = ["original", "dark", "black", "snow", "sepia"];
+  const THEME_ICON_COLORS = {
+    original: "#d97706",
+    dark: "#3b82f6",
+    black: "#94a3b8",
+    snow: "#60a5fa",
+    sepia: "#b45309",
+  };
+  const THEME_LABELS = {
+    original: "原始",
+    dark: "深色",
+    black: "黑色",
+    snow: "雪色",
+    sepia: "棕褐",
+  };
+  const THEME_PALETTES = {
+    original: {
+      bg: "#ffffff",
+      "panel-bg": "#ffffff",
+      "bg-soft": "#f3f4f6",
+      text: "#111827",
+      muted: "#6b7280",
+      border: "#d1d5db",
+      accent: "#2563eb",
+      "accent-soft": "rgba(37, 99, 235, 0.12)",
+      danger: "#dc2626",
+      ok: "#15803d",
+      "input-bg": "#ffffff",
+    },
+    dark: {
+      bg: "#2e3440",
+      "panel-bg": "#2e3440",
+      "bg-soft": "#3b4252",
+      text: "#d8dee9",
+      muted: "#aeb8c7",
+      border: "#4c566a",
+      accent: "#88c0d0",
+      "accent-soft": "rgba(136, 192, 208, 0.16)",
+      danger: "#bf616a",
+      ok: "#a3be8c",
+      "input-bg": "#3b4252",
+    },
+    black: {
+      bg: "#000000",
+      "panel-bg": "#000000",
+      "bg-soft": "#171717",
+      text: "#ffffff",
+      muted: "#b3b3b3",
+      border: "#3d3d3d",
+      accent: "#4da3ff",
+      "accent-soft": "rgba(77, 163, 255, 0.18)",
+      danger: "#ff6b6b",
+      ok: "#6fcf97",
+      "input-bg": "#111111",
+    },
+    snow: {
+      bg: "#eceff4",
+      "panel-bg": "#eceff4",
+      "bg-soft": "#e5e9f0",
+      text: "#3b4252",
+      muted: "#66707f",
+      border: "#c7ced9",
+      accent: "#5e81ac",
+      "accent-soft": "rgba(94, 129, 172, 0.14)",
+      danger: "#bf616a",
+      ok: "#4c8c4a",
+      "input-bg": "#ffffff",
+    },
+    sepia: {
+      bg: "#f4ecd8",
+      "panel-bg": "#f4ecd8",
+      "bg-soft": "#eadfc8",
+      text: "#5b4636",
+      muted: "#8a7460",
+      border: "#d8c9ae",
+      accent: "#8a5a2b",
+      "accent-soft": "rgba(138, 90, 43, 0.14)",
+      danger: "#a5453b",
+      ok: "#5f7a3f",
+      "input-bg": "#fbf6ea",
+    },
+  };
   const DEEPL_WEB_ENDPOINT = "https://oneshot-free.www.deepl.com/v1/translate";
 
   function prefKey(key) {
@@ -164,6 +252,7 @@ var ZoteroSelectionTranslator = (function () {
       this.dictCache = new Map();
       this.annotationKeys = new Map();
       this.activePins = new Map();
+      this.themeObserverSymbols = [];
       this.dictionary =
         typeof SelectionTranslatorDictionary !== "undefined"
           ? SelectionTranslatorDictionary
@@ -249,8 +338,15 @@ var ZoteroSelectionTranslator = (function () {
       if (this.getPref("pinByDefault") === "") {
         this.setPref("pinByDefault", false);
       }
+      if (this.getPref("theme") === "") {
+        this.setPref("theme", "auto");
+      }
+      if (this.getPref("engineSelectWidth") === "") {
+        this.setPref("engineSelectWidth", 0);
+      }
 
       this.registerPreferencePane();
+      this.registerThemeObservers();
       this.registerReaderEvents();
 
       for (const win of Zotero.getMainWindows()) {
@@ -263,6 +359,15 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     shutdown() {
+      for (const symbol of this.themeObserverSymbols) {
+        try {
+          Zotero.Prefs.unregisterObserver(symbol);
+        }
+        catch (e) {
+          // Ignore.
+        }
+      }
+      this.themeObserverSymbols = [];
       try {
         if (this.paneID) {
           Zotero.PreferencePanes.unregister(this.paneID);
@@ -302,6 +407,7 @@ var ZoteroSelectionTranslator = (function () {
           src: `${this.rootURI}content/preferences.xhtml`,
           label: "划词翻译",
           image: `${this.rootURI}content/icons/icon-48.png`,
+          scripts: [`${this.rootURI}content/scripts/preferences.js`],
           stylesheets: [`${this.rootURI}content/styles/preferences.css`],
           helpURL: "https://www.zotero.org/support/preferences",
         });
@@ -316,6 +422,331 @@ var ZoteroSelectionTranslator = (function () {
       catch (e) {
         Zotero.logError(e);
       }
+    }
+
+    registerThemeObservers() {
+      try {
+        const handler = () => this.refreshThemes();
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver(prefKey("theme"), handler, true)
+        );
+        // Follow Zotero's reader theme prefs when "跟随系统 / Zotero 主题"
+        // is selected. This is a single handler for all live cards.
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver("reader.lightTheme", handler, true)
+        );
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver("reader.darkTheme", handler, true)
+        );
+      }
+      catch (e) {
+        Zotero.logError(e);
+      }
+    }
+
+    normalizeThemeId(id) {
+      const value = String(id || "").toLowerCase();
+      if (!value || value === "light" || value === "default") {
+        return "original";
+      }
+      if (THEME_PALETTES[value]) {
+        return value;
+      }
+      return "";
+    }
+
+    resolveThemeId(state) {
+      const pref = this.getPref("theme");
+      if (pref && pref !== "auto" && THEME_PALETTES[pref]) {
+        return pref;
+      }
+      let dark = false;
+      let themeId = "";
+      try {
+        const internal = state && state.reader && state.reader._internalReader;
+        if (internal && typeof internal.getTheme === "function") {
+          themeId = internal.getTheme();
+        }
+        if (internal && typeof internal.getColorScheme === "function") {
+          const scheme = internal.getColorScheme();
+          if (scheme === "dark" || scheme === "light") {
+            dark = scheme === "dark";
+          }
+        }
+      }
+      catch (e) {
+        // Fall back to prefs / media query.
+      }
+      const normalized = this.normalizeThemeId(themeId);
+      if (normalized) {
+        return normalized;
+      }
+      try {
+        const docWin = state && state.doc && state.doc.defaultView;
+        if (docWin && typeof docWin.matchMedia === "function") {
+          dark = docWin.matchMedia("(prefers-color-scheme: dark)").matches;
+        }
+      }
+      catch (e) {
+        // Keep the color scheme inferred above.
+      }
+      let id = "";
+      try {
+        id = dark
+          ? Zotero.Prefs.get("reader.darkTheme", true)
+          : Zotero.Prefs.get("reader.lightTheme", true);
+      }
+      catch (e) {
+        // Ignore.
+      }
+      return this.normalizeThemeId(id) || (dark ? "dark" : "original");
+    }
+
+    applyThemeToPanel(panel, themeId) {
+      if (!panel) {
+        return;
+      }
+      const palette = THEME_PALETTES[themeId] || THEME_PALETTES.original;
+      for (const [key, value] of Object.entries(palette)) {
+        panel.style.setProperty(`--zst-${key}`, value);
+      }
+      panel.dataset.zstTheme = themeId;
+    }
+
+    applyTheme(state) {
+      if (!state || state.destroyed || !state.panel) {
+        return;
+      }
+      const themeId = this.resolveThemeId(state);
+      state.themeId = themeId;
+      this.applyThemeToPanel(state.panel, themeId);
+      this.updateThemeButton(state);
+    }
+
+    refreshThemes() {
+      for (const state of this.activePins.values()) {
+        if (state && !state.destroyed) {
+          try {
+            this.applyTheme(state);
+          }
+          catch (e) {
+            // Ignore a closed reader.
+          }
+        }
+      }
+      // Also refresh any popup card that is still open.
+      try {
+        for (const reader of Zotero.Reader._readers || []) {
+          const doc = reader._iframeWindow && reader._iframeWindow.document;
+          if (!doc) {
+            continue;
+          }
+          for (const panel of doc.querySelectorAll(".zst-panel")) {
+            try {
+              this.applyThemeToPanel(
+                panel,
+                this.resolveThemeId({ reader, doc })
+              );
+            }
+            catch (e) {
+              // Ignore.
+            }
+          }
+        }
+      }
+      catch (e) {
+        // Ignore.
+      }
+    }
+
+    themeIcon(doc, themeId) {
+      const NS = "http://www.w3.org/2000/svg";
+      const color = THEME_ICON_COLORS[themeId] || THEME_ICON_COLORS.original;
+      const svg = doc.createElementNS(NS, "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("width", "15");
+      svg.setAttribute("height", "15");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", color);
+      svg.setAttribute("stroke-width", "1.25");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      const add = (tag, attrs) => {
+        const node = doc.createElementNS(NS, tag);
+        for (const [name, value] of Object.entries(attrs || {})) {
+          node.setAttribute(name, String(value));
+        }
+        svg.appendChild(node);
+        return node;
+      };
+      if (themeId === "dark") {
+        // Simple line whale.
+        add("path", {
+          d:
+            "M2.2 9.1c.5-2.3 2.7-3.7 5.3-3.7 2.1 0 3.9 1 4.8 2.5.3.5.8.8 1.4.8.8 0 1.4-.5 1.7-1.1",
+        });
+        add("path", {
+          d: "M2.2 9.1c.8 1.9 2.8 3 5.3 3 2.5 0 4.6-1.1 5.4-2.8",
+        });
+        add("path", { d: "M13.7 8.7l1.3-1.6v3.3l-1.3-1.7" });
+        add("path", { d: "M6.3 5.6c-.1-1 .4-1.9 1.2-2.4M7.5 3.2l.9.6" });
+        add("circle", {
+          cx: "5.1",
+          cy: "8.5",
+          r: "0.45",
+          fill: color,
+          stroke: "none",
+        });
+      }
+      else if (themeId === "black") {
+        // Line crescent moon.
+        add("path", {
+          d: "M11.9 2.7a5.2 5.2 0 1 0 1.3 9.4 4.2 4.2 0 0 1-1.3-9.4z",
+        });
+      }
+      else if (themeId === "snow") {
+        // Line snowflake.
+        add("path", {
+          d:
+            "M8 1.4v13.2M2.3 4.7l11.4 6.6M13.7 4.7L2.3 11.3",
+        });
+        add("path", {
+          d:
+            "M8 1.4L6.9 2.5M8 1.4l1.1 1.1M8 14.6l-1.1-1.1M8 14.6l1.1-1.1M2.3 4.7l1.5-.2M2.3 4.7l.2 1.5M13.7 11.3l-1.5.2M13.7 11.3l-.2-1.5M13.7 4.7l-1.5-.2M13.7 4.7l-.2 1.5M2.3 11.3l1.5.2M2.3 11.3l.2-1.5",
+        });
+      }
+      else if (themeId === "sepia") {
+        // Line tree stump with growth rings.
+        add("path", {
+          d:
+            "M2.9 5.2c0-1.3 2.3-2.3 5.1-2.3s5.1 1 5.1 2.3-2.3 2.3-5.1 2.3-5.1-1-5.1-2.3z",
+        });
+        add("path", {
+          d:
+            "M2.9 5.2v5.3c0 1.3 2.3 2.3 5.1 2.3s5.1-1 5.1-2.3V5.2",
+        });
+        add("path", {
+          d:
+            "M5.1 5.2c0-.6 1.3-1.1 2.9-1.1s2.9.5 2.9 1.1-1.3 1.1-2.9 1.1-2.9-.5-2.9-1.1z",
+        });
+      }
+      else {
+        // Line sun.
+        add("circle", { cx: "8", cy: "8", r: "2.6" });
+        add("path", {
+          d:
+            "M8 1.4v2.1M8 12.5v2.1M1.4 8h2.1M12.5 8h2.1M3.3 3.3l1.5 1.5M11.2 11.2l1.5 1.5M12.7 3.3l-1.5 1.5M4.8 11.2l-1.5 1.5",
+        });
+      }
+      return svg;
+    }
+
+    updateThemeButton(state) {
+      const button = state.refs && state.refs.themeButton;
+      if (!button || !state.doc) {
+        return;
+      }
+      const themeId = state.themeId || this.resolveThemeId(state);
+      const label = THEME_LABELS[themeId] || THEME_LABELS.original;
+      button.replaceChildren(this.themeIcon(state.doc, themeId));
+      button.title = `主题：${label}（点击切换）`;
+      button.setAttribute("aria-label", `主题：${label}，点击切换`);
+      button.dataset.zstTheme = themeId;
+    }
+
+    cycleTheme(state) {
+      if (!state || state.destroyed) {
+        return;
+      }
+      const current = state.themeId || this.resolveThemeId(state);
+      const index = Math.max(0, THEME_IDS.indexOf(current));
+      const next = THEME_IDS[(index + 1) % THEME_IDS.length];
+      this.setPref("theme", next);
+      state.themeId = next;
+      this.applyThemeToPanel(state.panel, next);
+      this.updateThemeButton(state);
+      this.refreshThemes();
+    }
+
+    getEngineSelectMaxWidth(state) {
+      const refs = state.refs || {};
+      const wrap = refs.engineWrap;
+      const themeButton = refs.themeButton;
+      if (!wrap || !themeButton) {
+        return 205;
+      }
+      const wrapRect = wrap.getBoundingClientRect();
+      const themeRect = themeButton.getBoundingClientRect();
+      if (!wrapRect.width || !themeRect.width) {
+        return 205;
+      }
+      return Math.max(
+        ENGINE_SELECT_MIN_WIDTH,
+        Math.floor(themeRect.left - wrapRect.left - 8)
+      );
+    }
+
+    applyEngineSelectWidth(state) {
+      if (!state || state.destroyed || !state.refs) {
+        return;
+      }
+      const select = state.refs.engineSelect;
+      const wrap = state.refs.engineWrap;
+      if (!select || !wrap) {
+        return;
+      }
+      const max = this.getEngineSelectMaxWidth(state);
+      let width = parseFloat(this.getPref("engineSelectWidth")) || 0;
+      if (!width) {
+        width = select.offsetWidth || 205;
+      }
+      width = Math.min(max, Math.max(ENGINE_SELECT_MIN_WIDTH, Math.round(width)));
+      select.style.width = `${width}px`;
+      select.style.maxWidth = `${max}px`;
+      wrap.style.maxWidth = `${max}px`;
+    }
+
+    beginEngineWidthResize(state, event) {
+      if (!state || state.destroyed || event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const select = state.refs.engineSelect;
+      const wrap = state.refs.engineWrap;
+      const resizer = state.refs.engineResizer;
+      if (!select || !wrap) {
+        return;
+      }
+      const win = state.doc.defaultView;
+      const startX = event.clientX;
+      const startWidth = select.offsetWidth;
+      const max = this.getEngineSelectMaxWidth(state);
+      try {
+        resizer.setPointerCapture(event.pointerId);
+      }
+      catch (e) {
+        // Window listeners still work without pointer capture.
+      }
+      const onMove = (moveEvent) => {
+        const width = Math.min(
+          max,
+          Math.max(ENGINE_SELECT_MIN_WIDTH, startWidth + (moveEvent.clientX - startX))
+        );
+        select.style.width = `${Math.round(width)}px`;
+      };
+      const onUp = () => {
+        win.removeEventListener("pointermove", onMove);
+        win.removeEventListener("pointerup", onUp);
+        win.removeEventListener("pointercancel", onUp);
+        const width = Math.round(select.offsetWidth);
+        this.setPref("engineSelectWidth", width);
+      };
+      win.addEventListener("pointermove", onMove);
+      win.addEventListener("pointerup", onUp);
+      win.addEventListener("pointercancel", onUp);
     }
 
     registerReaderEvents() {
@@ -444,6 +875,11 @@ var ZoteroSelectionTranslator = (function () {
         // width to take effect without clipping the translation.
         const popup = state.popup;
         popup.style.maxWidth = "none";
+        setTimeout(() => {
+          if (!state.destroyed) {
+            this.applyEngineSelectWidth(state);
+          }
+        }, 0);
         // "默认置顶" pins the very first card. Defer one tick so the popup
         // has been laid out and the pinned geometry is meaningful.
         if (this.getPref("pinByDefault")) {
@@ -522,7 +958,7 @@ var ZoteroSelectionTranslator = (function () {
       panel.addEventListener("mousedown", (e) => e.stopPropagation());
 
       const hasDictionary = typeof SelectionTranslatorDictionary !== "undefined";
-      const dictSource = hasDictionary ? this.getPref("dictionarySource") : "auto";
+      const dictSource = hasDictionary ? this.getPref("dictionarySource") : "choose";
       const word = normalizeLookupWord(cleanText);
       const dictionaryEnabled =
         !!this.getPref("dictionaryEnabled") && hasDictionary && !!word;
@@ -574,6 +1010,18 @@ var ZoteroSelectionTranslator = (function () {
       engineSelect.className = "zst-engine-select";
       engineSelect.title = "翻译引擎 / 词典来源（也可以在这里临时切换）";
       this.fillModeSelect(state, engineSelect);
+      const engineWrap = h(doc, "div", { className: "zst-engine-wrap" });
+      const engineResizer = h(doc, "div", {
+        className: "zst-engine-resizer",
+        attrs: {
+          title: "拖动调整渠道下拉框宽度",
+          "aria-hidden": "true",
+        },
+      });
+      engineResizer.addEventListener("pointerdown", (event) =>
+        this.beginEngineWidthResize(state, event)
+      );
+      engineWrap.append(engineSelect, engineResizer);
       engineSelect.addEventListener("change", () => {
         const next = engineSelect.value;
         if (next === "mode:translate") {
@@ -647,6 +1095,19 @@ var ZoteroSelectionTranslator = (function () {
         attrs: { type: "button", title: "调整译文字号和行间距", "aria-label": "字号与行间距" },
       });
 
+      const themeButton = h(doc, "button", {
+        className: "zst-icon-btn zst-theme-btn",
+        attrs: {
+          type: "button",
+          title: "主题：原始（点击切换）",
+          "aria-label": "切换卡片主题",
+        },
+      });
+      themeButton.appendChild(
+        this.themeIcon(doc, this.resolveThemeId(state))
+      );
+      themeButton.addEventListener("click", () => this.cycleTheme(state));
+
       const styleRow = h(doc, "div", {
         className: "zst-style-row",
         attrs: { hidden: "hidden" },
@@ -703,8 +1164,9 @@ var ZoteroSelectionTranslator = (function () {
 
       header.append(
         logo,
-        engineSelect,
+        engineWrap,
         h(doc, "span", { className: "zst-head-spacer" }),
+        themeButton,
         styleButton,
         refresh,
         settings
@@ -888,6 +1350,9 @@ var ZoteroSelectionTranslator = (function () {
       state.refs = {
         header,
         engineSelect,
+        engineWrap,
+        engineResizer,
+        themeButton,
         styleButton,
         styleRow,
         fontInput,
@@ -916,6 +1381,8 @@ var ZoteroSelectionTranslator = (function () {
 
       this.setActionState(state, false);
       this.updateClearButton(state);
+      this.applyTheme(state);
+      this.applyEngineSelectWidth(state);
       if (state.mode === "dict") {
         this.setStatus(
           state,
@@ -1071,7 +1538,7 @@ var ZoteroSelectionTranslator = (function () {
           });
           if (data && data.word) {
             this.dictCache.set(cacheKey, data);
-            while (this.dictCache.size > 300) {
+            while (this.dictCache.size > DICT_CACHE_LIMIT) {
               this.dictCache.delete(this.dictCache.keys().next().value);
             }
           }
@@ -1627,6 +2094,7 @@ var ZoteroSelectionTranslator = (function () {
         return;
       }
       state.refs.status.textContent = text || "";
+      state.refs.status.title = text || "";
       state.refs.status.classList.toggle("ok", kind === "ok");
       state.refs.status.classList.toggle("err", kind === "err");
       state.lastStatus = { text: text || "", kind: kind || "" };
@@ -2450,6 +2918,19 @@ var ZoteroSelectionTranslator = (function () {
       }
       this.addResizeHandles(state);
       this.updatePinButton(state);
+      this.applyTheme(state);
+      this.applyEngineSelectWidth(state);
+      if (this.getPref("theme") === "auto") {
+        try {
+          const media = win.matchMedia("(prefers-color-scheme: dark)");
+          const listener = () => this.applyTheme(state);
+          media.addEventListener?.("change", listener);
+          state.themeMedia = { media, listener };
+        }
+        catch (e) {
+          // Theme observer on reader prefs still covers most changes.
+        }
+      }
     }
 
     /**
@@ -2541,6 +3022,7 @@ var ZoteroSelectionTranslator = (function () {
           )}px`;
         }
       }
+      this.applyEngineSelectWidth(state);
     }
 
     closePinnedPanel(state) {
@@ -2549,6 +3031,18 @@ var ZoteroSelectionTranslator = (function () {
       state.pinned = false;
       state.handles.forEach((handle) => handle.remove());
       state.handles = [];
+      if (state.themeMedia) {
+        try {
+          state.themeMedia.media.removeEventListener?.(
+            "change",
+            state.themeMedia.listener
+          );
+        }
+        catch (e) {
+          // Ignore.
+        }
+        state.themeMedia = null;
+      }
       panel.classList.remove("zst-pinned", "zst-dragging", "zst-resizing", "zst-updated");
       panel.remove();
       state.destroyed = true;
@@ -2809,6 +3303,7 @@ var ZoteroSelectionTranslator = (function () {
         panel.style.willChange = "";
         panel.classList.remove("zst-resizing");
         state.resizing = false;
+        this.applyEngineSelectWidth(state);
         win.removeEventListener("pointermove", onMove);
         win.removeEventListener("pointerup", onUp);
         win.removeEventListener("pointercancel", onUp);

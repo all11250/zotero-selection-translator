@@ -13,6 +13,8 @@
   box-sizing: border-box;
   width: var(--zst-width, 380px);
   max-width: calc(100vw - 28px);
+  border-radius: 8px;
+  background: var(--zst-panel-bg, transparent);
   color: var(--zst-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
     "PingFang SC", "Noto Sans CJK SC", sans-serif;
@@ -41,7 +43,7 @@
   width: 22px;
   height: 22px;
   border-radius: 7px;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: var(--zst-accent, #2563eb);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -50,9 +52,35 @@
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35);
 }
 
+.zst-engine-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.zst-engine-resizer {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 3;
+  cursor: ew-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.zst-engine-resizer:hover {
+  background: var(--zst-accent-soft);
+  border-radius: 3px;
+}
+
 .zst-engine-select {
   min-width: 0;
   max-width: 205px;
+  width: 205px;
   height: 24px;
   padding: 0 20px 0 7px;
   border: 1px solid var(--zst-border);
@@ -112,6 +140,17 @@
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1;
+}
+
+.zst-theme-btn {
+  padding: 0;
+  line-height: 1;
+}
+
+.zst-theme-btn svg {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 .zst-style-row {
@@ -278,7 +317,15 @@
 
 /* Times New Roman covers Latin letters/digits; missing CJK glyphs fall back
  * to SimSun/Songti for Chinese characters. */
-.zst-panel.zst-serif-font .zst-translation {
+.zst-panel.zst-serif-font .zst-translation,
+.zst-panel.zst-serif-font .zst-dict-word,
+.zst-panel.zst-serif-font .zst-dict-translation,
+.zst-panel.zst-serif-font .zst-dict-pos,
+.zst-panel.zst-serif-font .zst-dict-meanings,
+.zst-panel.zst-serif-font .zst-dict-defs,
+.zst-panel.zst-serif-font .zst-dict-def,
+.zst-panel.zst-serif-font .zst-dict-examples,
+.zst-panel.zst-serif-font .zst-dict-example {
   font-family: "Times New Roman", "SimSun", "宋体", "Songti SC", "STSong",
     "Noto Serif CJK SC", serif;
 }
@@ -300,7 +347,6 @@
 }
 
 .zst-dict-word {
-  font-family: "Times New Roman", "SimSun", "宋体", serif;
   font-size: calc(var(--zst-font-size, 14px) + 3px);
   font-weight: 700;
   line-height: 1.2;
@@ -323,7 +369,7 @@
 
 .zst-phonetic-btn {
   padding: 1px 6px;
-  border: 1px dashed rgba(37, 99, 235, 0.45);
+  border: 1px dashed var(--zst-accent);
   border-radius: 5px;
   background: transparent;
   color: var(--zst-accent);
@@ -647,7 +693,7 @@
 }
 
 .zst-foot-spacer {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
 }
 
 .zst-link-btn {
@@ -672,7 +718,9 @@
 }
 
 .zst-status {
-  max-width: 172px;
+  flex: 1 1 auto;
+  min-width: 42px;
+  max-width: none;
   overflow: hidden;
   color: var(--zst-muted);
   font-size: 11px;
@@ -699,7 +747,7 @@
   padding: 10px;
   border: 1px solid var(--zst-border);
   border-radius: 10px;
-  background: var(--material-toolbar, var(--color-background, #fff));
+  background: var(--zst-panel-bg, var(--material-toolbar, var(--color-background, #fff)));
   box-shadow: 0 0 3px rgba(0, 0, 0, 0.35), 0 14px 48px rgba(0, 0, 0, 0.28);
 }
 

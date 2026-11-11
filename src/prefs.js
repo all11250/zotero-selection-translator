@@ -24,6 +24,9 @@ pref(P + "fallbackEngine", "mymemory");
 pref(P + "showToolbarButton", true);
 pref(P + "showSidebarButton", true);
 pref(P + "pinByDefault", false);
+pref(P + "theme", "auto");
+pref(P + "disclaimerCollapsed", false);
+pref(P + "engineSelectWidth", "0");
 
 pref(P + "dictionaryEnabled", true);
 // No default dictionary lookup either: the user must pick a source.

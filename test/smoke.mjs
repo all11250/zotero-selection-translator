@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const manifest = JSON.parse(read("src/manifest.json"));
 assert.equal(manifest.manifest_version, 2);
-assert.equal(manifest.version, "1.8.1-beta");
+assert.equal(manifest.version, "1.8.2-beta");
 const zotero = manifest.applications?.zotero;
 assert.ok(zotero, "applications.zotero missing");
 assert.equal(zotero.id, "selection-translator@zotero.local");
@@ -23,6 +23,9 @@ assert.ok(bootstrap.includes("content/scripts/engines.js"));
 assert.ok(bootstrap.includes("content/scripts/dictionary.js"));
 assert.ok(bootstrap.includes("content/scripts/translate.js"));
 assert.ok(bootstrap.includes("evalInSandbox"), "jar fallback missing");
+
+const preferencesJs = read("src/content/scripts/preferences.js");
+assert.ok(fs.existsSync(path.join(root, "src/content/scripts/preferences.js")));
 
 const translate = read("src/content/scripts/translate.js");
 assert.ok(translate.includes("renderTextSelectionPopup"));
@@ -40,9 +43,19 @@ for (const feature of [
   "beginSpeechStatus",
   "manualSize",
   "CONTINUOUS_DEBOUNCE_MS",
+  "THEME_PALETTES",
+  "themeIcon",
+  "cycleTheme",
+  "applyEngineSelectWidth",
+  "beginEngineWidthResize",
+  "ENGINE_SELECT_MIN_WIDTH",
+  "DICT_CACHE_LIMIT",
 ]) {
-  assert.ok(translate.includes(feature), `missing 1.8.1 feature ${feature}`);
+  assert.ok(translate.includes(feature), `missing 1.8.2 feature ${feature}`);
 }
+assert.ok(!translate.includes("🐋"), "theme icons must not be emoji");
+assert.ok(!translate.includes("🪵"), "theme icons must not be emoji");
+assert.ok(preferencesJs.includes("我已知晓"));
 assert.ok(
   !translate.includes("state.translation = joinText(state.translation, piece)"),
   "continuous mode must not append independent translations"
@@ -113,6 +126,9 @@ for (const key of [
   "dictionaryAiEngine",
   "dictionaryAiPrompt",
   "pinByDefault",
+  "theme",
+  "disclaimerCollapsed",
+  "engineSelectWidth",
 ]) {
   assert.ok(prefs.includes(`"${key}"`), `missing pref ${key}`);
 }
@@ -154,14 +170,26 @@ assert.ok(translate.includes("isEngineId"));
 assert.ok(engines.includes("UNSET_ENGINE"));
 assert.ok(css.includes("align-items: center"));
 assert.ok(translate.includes("第三方非官方插件"));
+assert.ok(css.includes(".zst-theme-btn"));
+assert.ok(css.includes(".zst-engine-resizer"));
+assert.ok(css.includes(".zst-panel.zst-serif-font .zst-dict-meanings"));
+assert.ok(css.includes("--zst-panel-bg"));
+assert.ok(css.includes(".zst-status"));
+assert.ok(translate.includes("content/scripts/preferences.js"));
+assert.ok(translate.includes("registerThemeObservers"));
+assert.ok(translate.includes("resolveThemeId"));
 
 const prefsCss = read("src/content/styles/preferences.css");
 assert.ok(prefsCss.includes(".zst-disclaimer"));
 assert.ok(prefsCss.includes(".zst-disclaimer-title"));
+assert.ok(prefsCss.includes(".zst-disclaimer-toggle"));
+assert.ok(prefsCss.includes(".zst-disclaimer-collapsed"));
 
 const prefsXhtml = read("src/content/preferences.xhtml");
 assert.ok(prefsXhtml.includes("zst-clear-cache"));
 assert.ok(prefsXhtml.includes('id="zst-disclaimer"'));
+assert.ok(prefsXhtml.includes('id="zst-disclaimer-toggle"'));
+assert.ok(prefsXhtml.includes('id="zst-theme"'));
 assert.ok(prefsXhtml.includes("重要声明与免责声明"));
 assert.ok(prefsXhtml.includes("仅供个人学习"));
 assert.ok(prefsXhtml.includes('value="choose"'));

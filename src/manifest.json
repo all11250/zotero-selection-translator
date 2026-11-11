@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "划词翻译 · Selection Translator",
-  "version": "1.8.1-beta",
+  "version": "1.8.2-beta",
   "description": "在 Zotero 阅读器中划词即译，支持 DeepL 免费网页版、多种翻译引擎和 AI 大模型，并可一键高亮/划线并把译文写入标注评论。仅供个人学习研究使用，禁止用于损害他人或单位合法权益、侵犯知识产权或违反法律法规的用途。",
   "author": "Zotero Selection Translator contributors",
   "homepage_url": "https://github.com/all11250/zotero-selection-translator",

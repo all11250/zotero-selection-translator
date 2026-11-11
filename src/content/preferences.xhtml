@@ -5,31 +5,41 @@
 >
   <html:div id="zst-disclaimer" class="zst-disclaimer">
     <html:div class="zst-disclaimer-title">⚠ 仅供学习使用 · 重要声明与免责声明（请先阅读）</html:div>
-    <html:p>
-      <html:strong>本插件仅供个人学习、研究和技术交流使用。</html:strong>
-      严禁将本插件用于任何损害他人或单位合法权益、侵犯知识产权、违反法律法规或第三方服务条款的用途；
-      如需商用，请自行取得所有相关权利方的授权。作者不提供任何商业授权、质量保证或合规背书。
-    </html:p>
-    <html:p>
-      本插件是独立第三方开源工具，与 DeepL、Google、Microsoft、有道、必应、牛津等任何厂商均
-      <html:strong>无隶属、合作、赞助或背书关系</html:strong>，也未获得其授权。
-    </html:p>
-    <html:p>
-      插件中的 <html:strong>DeepL 免费网页版、Google 免费接口，以及必应/有道/牛津网页词典</html:strong>
-      均属于非官方通道或网页读取，可能违反第三方服务条款，并可能随时失效、限流，或导致账号/IP 受限。
-      请优先配置并使用官方 API；需要商用或稳定服务时，请自行购买相应授权。
-    </html:p>
-    <html:p>
-      请在遵守所在国家/地区法律、所在机构规定以及第三方服务条款的前提下使用本插件。
-      <html:strong>请勿使用本插件处理机密、敏感或个人隐私数据</html:strong>；正式学术引用、公开发布或商业使用前，
-      请自行核验译文、词典释义与 AI 输出，并自行取得必要授权。
-    </html:p>
-    <html:p>
-      <html:strong>在适用法律允许的最大范围内，插件作者及贡献者不对因使用或无法使用本插件而产生的任何直接或间接损失、
-      数据丢失、账号封禁、服务中断、译文/词典/AI 结果错误、版权或合规问题承担责任。</html:strong>
-      本插件按“现状”提供，不附带任何明示或默示担保。继续使用即表示你已阅读、理解并同意自行承担相关风险；
-      如不同意，请停止使用并卸载本插件。
-    </html:p>
+    <html:div class="zst-disclaimer-summary">
+      仅供学习使用：严禁用于损害他人或单位合法权益、侵犯知识产权或违反法律法规的用途。
+    </html:div>
+    <html:div class="zst-disclaimer-body">
+      <html:p>
+        <html:strong>本插件仅供个人学习、研究和技术交流使用。</html:strong>
+        严禁将本插件用于任何损害他人或单位合法权益、侵犯知识产权、违反法律法规或第三方服务条款的用途；
+        如需商用，请自行取得所有相关权利方的授权。作者不提供任何商业授权、质量保证或合规背书。
+      </html:p>
+      <html:p>
+        本插件是独立第三方开源工具，与 DeepL、Google、Microsoft、有道、必应、牛津等任何厂商均
+        <html:strong>无隶属、合作、赞助或背书关系</html:strong>，也未获得其授权。
+      </html:p>
+      <html:p>
+        插件中的 <html:strong>DeepL 免费网页版、Google 免费接口，以及必应/有道/牛津网页词典</html:strong>
+        均属于非官方通道或网页读取，可能违反第三方服务条款，并可能随时失效、限流，或导致账号/IP 受限。
+        请优先配置并使用官方 API；需要商用或稳定服务时，请自行购买相应授权。
+      </html:p>
+      <html:p>
+        请在遵守所在国家/地区法律、所在机构规定以及第三方服务条款的前提下使用本插件。
+        <html:strong>请勿使用本插件处理机密、敏感或个人隐私数据</html:strong>；正式学术引用、公开发布或商业使用前，
+        请自行核验译文、词典释义与 AI 输出，并自行取得必要授权。
+      </html:p>
+      <html:p>
+        <html:strong>在适用法律允许的最大范围内，插件作者及贡献者不对因使用或无法使用本插件而产生的任何直接或间接损失、
+        数据丢失、账号封禁、服务中断、译文/词典/AI 结果错误、版权或合规问题承担责任。</html:strong>
+        本插件按“现状”提供，不附带任何明示或默示担保。继续使用即表示你已阅读、理解并同意自行承担相关风险；
+        如不同意，请停止使用并卸载本插件。
+      </html:p>
+    </html:div>
+    <html:div class="zst-disclaimer-foot">
+      <html:button id="zst-disclaimer-toggle" class="zst-disclaimer-toggle" type="button">
+        我已知晓
+      </html:button>
+    </html:div>
   </html:div>
 
   <groupbox>
@@ -52,6 +62,27 @@
       native="true"
       preference="extensions.zotero.zoteroSelectionTranslator.autoTranslate"
     />
+    <hbox class="zst-pref-row" align="center">
+      <label control="zst-theme">主题样式</label>
+      <menulist
+        id="zst-theme"
+        native="true"
+        preference="extensions.zotero.zoteroSelectionTranslator.theme"
+      >
+        <menupopup>
+          <menuitem label="跟随系统 / Zotero 主题" value="auto" />
+          <menuitem label="原始（白色）" value="original" />
+          <menuitem label="深色（蓝灰鲸鱼）" value="dark" />
+          <menuitem label="黑色（纯黑）" value="black" />
+          <menuitem label="雪色（浅灰蓝）" value="snow" />
+          <menuitem label="棕褐（护眼）" value="sepia" />
+        </menupopup>
+      </menulist>
+    </hbox>
+    <html:p class="zst-pref-note">
+      卡片主题可跟随 Zotero/系统主题自动变化；也可以固定为上述五种之一。翻译面板顶部、字号按钮左边的主题按钮
+      可在五种主题之间快速循环。切换主题只改变颜色，译文仍保持中文宋体、英文/数字 Times New Roman。
+    </html:p>
     <checkbox
       id="zst-show-source"
       label="在翻译结果上方显示原文"
@@ -403,6 +434,10 @@
       native="true"
       preference="extensions.zotero.zoteroSelectionTranslator.dictionaryShowDefinitions"
     />
+    <html:p class="zst-pref-note">
+      词典正文与译文共用同一个「译文中文宋体 / 英文 Times New Roman」开关，不单独设置字体；
+      切换主题只改变颜色，不会改变宋体 + Times New Roman 字体。
+    </html:p>
     <html:p class="zst-pref-note">
       为避开默认查询带来的利益冲突，词典来源默认不选择，需用户主动选择后才会查询；
       必应、有道、牛津词典通过读取其公开网页获得免费释义，不需要 Key；这些页面可能随网站改版失效，
