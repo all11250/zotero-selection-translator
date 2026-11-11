@@ -163,6 +163,10 @@ assert.ok(css.includes(".zst-phonetic-btn"));
 assert.ok(!/\.zst-resize-handle::after/.test(css), "resize handle dot visuals removed");
 assert.ok(translate.includes("appendContinuousSelection"));
 assert.ok(translate.includes("toggleContinuous"));
+assert.ok(
+  translate.includes("已清空原内容，连续翻译已开启"),
+  "enabling continuous mode must clear existing card content"
+);
 assert.ok(translate.includes("pinByDefault"));
 assert.ok(translate.includes("joinText"));
 assert.ok(translate.includes("dictionaryEnabled"));

@@ -5,7 +5,7 @@
         {
           "version": "1.8.2",
           "update_link": "https://github.com/all11250/zotero-selection-translator/releases/download/v1.8.2/zotero-selection-translator-1.8.2.xpi",
-          "update_hash": "sha512:1795c046c58ce621d47f17f57d35ee3d8809716953733abb26a13b6b912cee3f286e184d374df6671dfa11216f8579206beedb64f081460ed4421e8c3732daeb",
+          "update_hash": "sha512:714c8e232af059d4ede2a2066c069c754260b10a52984061d85915e221f1212ae7de67f7409c312beb66fc4c7a5f9ecd4422450e594659097fe4177d211c499c",
           "applications": {
             "zotero": {
               "strict_min_version": "7.0",

@@ -2722,9 +2722,19 @@ var ZoteroSelectionTranslator = (function () {
       if (!state || !state.panel || state.mode === "dict") {
         return;
       }
-      state.continuous = !state.continuous;
-      if (state.continuous) {
-        if (!state.segments.length) {
+      if (!state.continuous) {
+        const hadContent =
+          !!String(state.sourceText || "").trim() ||
+          !!String(state.translation || "").trim() ||
+          (state.segments && state.segments.length > 0);
+        state.continuous = true;
+        // Enabling continuous mode on a card that already has content would
+        // otherwise carry the old paragraph into the merged translation.
+        // Clear it first so the next selection starts a fresh sequence.
+        if (hadContent) {
+          this.clearContent(state);
+        }
+        if (!state.segments.length && String(state.cleanText || "").trim()) {
           state.segments.push({
             sourceText: state.sourceText,
             cleanText: state.cleanText,
@@ -2734,7 +2744,13 @@ var ZoteroSelectionTranslator = (function () {
           this.pinPanel(state);
         }
         this.updateClearButton(state);
-        this.setStatus(state, "连续翻译已开启：在别处继续划词会合并后重新翻译", "ok");
+        this.setStatus(
+          state,
+          hadContent
+            ? "已清空原内容，连续翻译已开启：在别处继续划词会合并后重新翻译"
+            : "连续翻译已开启：在别处继续划词会合并后重新翻译",
+          "ok"
+        );
         // If the first fragment was never translated, start the merged
         // translation now instead of waiting for another selection.
         if (!String(state.translation || "").trim() && state.cleanText) {
@@ -2743,6 +2759,7 @@ var ZoteroSelectionTranslator = (function () {
         }
       }
       else {
+        state.continuous = false;
         this.updateClearButton(state);
         this.setStatus(state, "连续翻译已关闭", "");
       }
