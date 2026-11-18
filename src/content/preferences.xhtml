@@ -348,6 +348,26 @@
   </groupbox>
 
   <groupbox>
+    <label><html:h2>快捷键</html:h2></label>
+    <checkbox
+      id="zst-shortcuts-enabled"
+      label="启用卡片快捷键（关闭后不再响应或拦截任何快捷键，Zotero 保持原样）"
+      native="true"
+      preference="extensions.zotero.zoteroSelectionTranslator.shortcutsEnabled"
+    />
+    <html:p class="zst-pref-note">
+      翻译卡片上的每个按钮都可以绑定快捷键。点击下面的输入框后直接按下组合键即可；
+      <html:strong>Shift+Tab</html:strong> 默认用于切换翻译引擎 / 词典来源，也可以改成其他按键。
+      同一个快捷键不能同时绑定两个按钮：如果冲突，插件会提示并阻止保存。使用 Alt+…、Ctrl+… 或 Ctrl+Shift+… 等可能被 Zotero 占用的组合时，会保存但显示黄色冲突提示，建议优先使用 Ctrl+Alt+…。
+    </html:p>
+    <html:div id="zst-shortcuts" class="zst-shortcuts"></html:div>
+    <html:div class="zst-shortcut-actions">
+      <html:button id="zst-shortcuts-reset" type="button">恢复默认快捷键</html:button>
+      <html:span id="zst-shortcuts-status" class="zst-shortcut-status"></html:span>
+    </html:div>
+  </groupbox>
+
+  <groupbox>
     <label><html:h2>DeepL</html:h2></label>
     <html:p class="zst-pref-note">
       默认的“DeepL 免费网页版”调用 deepl.com 网页端使用的匿名接口，不需要 API Key，但属于非官方接口，

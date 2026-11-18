@@ -1,6 +1,9 @@
 /* Selection Translator - injected into the Zotero reader iframe. */
 
 .zst-panel {
+  /* The card itself is focusable so its shortcuts can be scoped to the card
+   * instead of leaking into Zotero's reader shortcuts. */
+  outline: none;
   --zst-accent: #2563eb;
   --zst-accent-soft: rgba(37, 99, 235, 0.12);
   --zst-border: var(--color-panedivider, rgba(0, 0, 0, 0.14));
@@ -21,6 +24,10 @@
   font-size: 13px;
   line-height: 1.45;
   user-select: none;
+}
+
+.zst-panel:focus {
+  outline: none;
 }
 
 .zst-panel *,
@@ -208,6 +215,15 @@
   outline-offset: 0;
 }
 
+.zst-style-hint {
+  margin-left: auto;
+  color: var(--zst-muted);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
 .zst-icon-btn:disabled {
   opacity: 0.5;
   cursor: default;
@@ -269,7 +285,8 @@
 }
 
 .zst-pin-btn,
-.zst-cont-btn {
+.zst-cont-btn,
+.zst-lock-btn {
   height: 23px;
   padding: 0 9px;
   border: 1px solid var(--zst-border);
@@ -282,6 +299,25 @@
   cursor: pointer;
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.zst-lock-btn {
+  width: 23px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zst-lock-btn[hidden] {
+  display: none !important;
+}
+
+.zst-lock-btn:hover,
+.zst-lock-btn.active {
+  border-color: var(--zst-accent);
+  background: var(--zst-accent-soft);
+  color: var(--zst-accent);
 }
 
 .zst-cont-btn {
@@ -699,24 +735,29 @@
 .zst-foot {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
   margin-top: 6px;
   padding-top: 5px;
   border-top: 1px solid var(--zst-border);
   min-height: 20px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .zst-foot-spacer {
-  flex: 0 0 auto;
+  display: none;
 }
 
 .zst-link-btn {
+  flex: 0 0 auto;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--zst-accent);
   font: inherit;
   font-size: 12px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -732,8 +773,8 @@
 }
 
 .zst-status {
-  flex: 1 1 auto;
-  min-width: 42px;
+  flex: 1 1 0;
+  min-width: 28px;
   max-width: none;
   overflow: hidden;
   color: var(--zst-muted);
@@ -923,6 +964,10 @@
   color: var(--fill-secondary, #666);
 }
 
+.zst-toolbar-btn[hidden] {
+  display: none !important;
+}
+
 .zst-toolbar-btn.active {
   color: var(--zst-accent, #2563eb);
   background: rgba(37, 99, 235, 0.12);
@@ -942,6 +987,18 @@
   line-height: 1;
   cursor: pointer;
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  align-self: center;
+  box-sizing: border-box;
+  margin: 0;
+  text-align: center;
+}
+
+.zst-sidebar-btn[hidden] {
+  display: none !important;
 }
 
 .zst-sidebar-btn:hover {

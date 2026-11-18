@@ -22,6 +22,35 @@ var ZoteroSelectionTranslator = (function () {
   // sent, so the engine sees one coherent paragraph.
   const CONTINUOUS_DEBOUNCE_MS = 650;
   const ENGINE_SELECT_MIN_WIDTH = 96;
+  // A selection popup can be torn down by Zotero between the key press and
+  // the shortcut handler. Keep the most recent card per reader briefly so
+  // "pin" / "continuous" can reattach it instead of silently doing nothing.
+  const CARD_SHORTCUT_FALLBACK_MS = 120000;
+
+  // Every control that appears in the selection card can be driven by a
+  // keyboard shortcut. Defaults are intentionally simple and unique; users can
+  // rebind them in the preference pane. "Shift+Tab" is reserved for switching
+  // translation engines / dictionary sources, as requested.
+  const SHORTCUT_ACTIONS = [
+    { id: "engineNext", label: "切换翻译引擎 / 词典来源", defaultKey: "Shift+Tab" },
+    { id: "theme", label: "切换卡片主题", defaultKey: "Ctrl+Alt+T" },
+    { id: "fontStyle", label: "字号与行间距面板", defaultKey: "Ctrl+Alt+A" },
+    { id: "refresh", label: "重新翻译 / 重新查词", defaultKey: "Ctrl+Alt+R" },
+    { id: "settings", label: "打开设置", defaultKey: "Ctrl+Alt+," },
+    { id: "lock", label: "锁定 / 解锁当前译文", defaultKey: "Ctrl+Alt+L" },
+    { id: "continuous", label: "开启 / 关闭连续翻译", defaultKey: "Ctrl+Alt+N" },
+    { id: "pin", label: "置顶 / 关闭置顶", defaultKey: "Ctrl+Alt+P" },
+    { id: "highlight", label: "高亮并保存译文", defaultKey: "Ctrl+Alt+H" },
+    { id: "underline", label: "划线并保存译文", defaultKey: "Ctrl+Alt+U" },
+    { id: "dictToggle", label: "查词典 / 整句翻译", defaultKey: "Ctrl+Alt+D" },
+    { id: "copy", label: "复制译文", defaultKey: "Ctrl+Alt+C" },
+    { id: "speak", label: "朗读译文", defaultKey: "Ctrl+Alt+S" },
+    { id: "clear", label: "清空卡片内容", defaultKey: "Ctrl+Alt+X" },
+  ];
+  const DEFAULT_SHORTCUTS = SHORTCUT_ACTIONS.reduce((map, action) => {
+    map[action.id] = action.defaultKey;
+    return map;
+  }, {});
 
   // Colors mirror Zotero's reader themes (original/light, dark, black, snow,
   // sepia). Only CSS custom properties are changed at runtime, which keeps
@@ -208,6 +237,140 @@ var ZoteroSelectionTranslator = (function () {
     return !!normalizeLookupWord(text);
   }
 
+  /**
+   * True for a selection that contains only Arabic digits, whitespace and
+   * numeric punctuation. Such selections (page numbers, years, figure
+   * numbers) must not be sent to a translation engine.
+   */
+  function isNumericOnly(text) {
+    const value = String(text || "").trim();
+    if (!value || !/\d/.test(value)) {
+      return false;
+    }
+    return /^[\d\s.,;:!?%+\-–—/\\|()（）[\]{}<>]+$/u.test(value);
+  }
+
+  /**
+   * Merge a newly selected fragment into the current continuous text without
+   * duplicating text the user selected twice. Returns:
+   *  - duplicate: the new fragment is already covered by the current text;
+   *  - replace:   the new selection covers the whole current text;
+   *  - append:    the new fragment extends the current text (possibly with a
+   *               small overlap removed).
+   */
+  function mergeSelectionText(current, next) {
+    const left = String(current || "").trim();
+    const right = String(next || "").trim();
+    if (!left) {
+      return { text: right, mode: "append", added: right };
+    }
+    if (!right) {
+      return { text: left, mode: "duplicate", added: "" };
+    }
+    if (left === right) {
+      return { text: left, mode: "duplicate", added: "" };
+    }
+    if (right.length >= 8 && left.includes(right)) {
+      return { text: left, mode: "duplicate", added: "" };
+    }
+    if (left.length >= 8 && right.includes(left)) {
+      return { text: right, mode: "replace", added: right };
+    }
+    const max = Math.min(left.length, right.length);
+    for (let length = max; length >= 12; length--) {
+      if (left.slice(-length) === right.slice(0, length)) {
+        return {
+          text: `${left} ${right.slice(length)}`,
+          mode: "append",
+          added: right.slice(length),
+        };
+      }
+    }
+    return { text: joinText(left, right), mode: "append", added: right };
+  }
+
+  function normalizeShortcutKey(key) {
+    const value = String(key == null ? "" : key);
+    if (!value) {
+      return "";
+    }
+    if (value === " " || value === "Spacebar") {
+      return "Space";
+    }
+    if (value === "Esc") {
+      return "Escape";
+    }
+    if (value === "Del") {
+      return "Delete";
+    }
+    if (value.length === 1) {
+      return value.toUpperCase();
+    }
+    return value;
+  }
+
+  function eventShortcut(event) {
+    if (!event) {
+      return "";
+    }
+    const key = normalizeShortcutKey(event.key);
+    if (!key || ["Control", "Alt", "Shift", "Meta"].includes(key)) {
+      return "";
+    }
+    const parts = [];
+    if (event.ctrlKey) {
+      parts.push("Ctrl");
+    }
+    if (event.altKey) {
+      parts.push("Alt");
+    }
+    if (event.shiftKey) {
+      parts.push("Shift");
+    }
+    if (event.metaKey) {
+      parts.push("Meta");
+    }
+    parts.push(key);
+    return parts.join("+");
+  }
+
+  function normalizeShortcutCombo(combo) {
+    const parts = String(combo || "")
+      .split("+")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (!parts.length) {
+      return "";
+    }
+    const key = normalizeShortcutKey(parts.pop());
+    const modifiers = [];
+    for (const part of parts) {
+      const name = part.toLowerCase();
+      if (name === "ctrl" || name === "control") {
+        if (!modifiers.includes("Ctrl")) {
+          modifiers.push("Ctrl");
+        }
+      }
+      else if (name === "alt" || name === "option") {
+        if (!modifiers.includes("Alt")) {
+          modifiers.push("Alt");
+        }
+      }
+      else if (name === "shift") {
+        if (!modifiers.includes("Shift")) {
+          modifiers.push("Shift");
+        }
+      }
+      else if (name === "meta" || name === "cmd" || name === "command") {
+        if (!modifiers.includes("Meta")) {
+          modifiers.push("Meta");
+        }
+      }
+    }
+    modifiers.push(key);
+    return modifiers.join("+");
+  }
+
   function h(doc, tag, options) {
     options = options || {};
     const node = doc.createElement(tag);
@@ -265,6 +428,11 @@ var ZoteroSelectionTranslator = (function () {
         getPref: (key) => this.getPref(key),
       };
       this.engines = E.createEngines(this.host);
+      this.shortcutActions = SHORTCUT_ACTIONS;
+      this.defaultShortcuts = DEFAULT_SHORTCUTS;
+      this.readerButtonTargets = new Map();
+      this.cardStates = new WeakMap();
+      this.handledShortcutEvents = new WeakSet();
     }
 
     getPref(key) {
@@ -344,9 +512,16 @@ var ZoteroSelectionTranslator = (function () {
       if (this.getPref("engineSelectWidth") === "") {
         this.setPref("engineSelectWidth", 0);
       }
+      if (this.getPref("shortcuts") === "") {
+        this.setPref("shortcuts", "{}");
+      }
+      if (this.getPref("shortcutsEnabled") === "") {
+        this.setPref("shortcutsEnabled", true);
+      }
 
       this.registerPreferencePane();
       this.registerThemeObservers();
+      this.registerUiObservers();
       this.registerReaderEvents();
 
       for (const win of Zotero.getMainWindows()) {
@@ -383,6 +558,51 @@ var ZoteroSelectionTranslator = (function () {
       this.clearTranslationCache();
       this.annotationKeys.clear();
       this.activePins.clear();
+      this.readerButtonTargets.clear();
+      try {
+        for (const reader of Zotero.Reader._readers || []) {
+          const focusManager =
+            reader._internalReader && reader._internalReader._focusManager;
+          if (
+            focusManager &&
+            focusManager.__zstTabGuard &&
+            focusManager.tabToGroup === focusManager.__zstTabGuard
+          ) {
+            focusManager.tabToGroup = focusManager.__zstOriginalTabToGroup;
+          }
+          if (focusManager) {
+            delete focusManager.__zstTabGuard;
+            delete focusManager.__zstOriginalTabToGroup;
+          }
+        }
+      }
+      catch (e) {
+        // A closing reader can disappear during shutdown.
+      }
+      try {
+        for (const reader of Zotero.Reader._readers || []) {
+          const win = reader._iframeWindow;
+          this.detachShortcutListener(win);
+          const doc = win && win.document;
+          if (doc) {
+            for (const frame of doc.querySelectorAll("iframe")) {
+              try {
+                this.detachShortcutListener(frame.contentWindow);
+                if (frame.__zstShortcutLoadHook) {
+                  frame.removeEventListener("load", frame.__zstShortcutLoadHook);
+                  delete frame.__zstShortcutLoadHook;
+                }
+              }
+              catch (e) {
+                // Cross-origin frame.
+              }
+            }
+          }
+        }
+      }
+      catch (e) {
+        // A closing reader can disappear during shutdown.
+      }
       this.startupDone = false;
     }
 
@@ -450,6 +670,627 @@ var ZoteroSelectionTranslator = (function () {
       }
       catch (e) {
         Zotero.logError(e);
+      }
+    }
+
+    registerUiObservers() {
+      try {
+        const buttonHandler = () => this.syncReaderButtons(true);
+        for (const key of [
+          "enabled",
+          "showToolbarButton",
+          "showSidebarButton",
+        ]) {
+          this.themeObserverSymbols.push(
+            Zotero.Prefs.registerObserver(prefKey(key), buttonHandler, true)
+          );
+        }
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver(
+            prefKey("autoTranslate"),
+            () => this.syncReaderButtons(false),
+            true
+          )
+        );
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver(
+            prefKey("shortcuts"),
+            () => this.refreshShortcutTitles(),
+            true
+          )
+        );
+        this.themeObserverSymbols.push(
+          Zotero.Prefs.registerObserver(
+            prefKey("shortcutsEnabled"),
+            () => this.refreshShortcutTitles(),
+            true
+          )
+        );
+      }
+      catch (e) {
+        Zotero.logError(e);
+      }
+    }
+
+    shortcutsEnabled() {
+      const value = this.getPref("shortcutsEnabled");
+      return value === true || value === "true" || value === 1 || value === "1";
+    }
+
+    getShortcutActions() {
+      return SHORTCUT_ACTIONS.map((action) => ({ ...action }));
+    }
+
+    getShortcutConfig() {
+      const config = { ...DEFAULT_SHORTCUTS };
+      try {
+        const parsed = JSON.parse(this.getPref("shortcuts") || "{}");
+        if (parsed && typeof parsed === "object") {
+          for (const action of SHORTCUT_ACTIONS) {
+            const value = parsed[action.id];
+            if (typeof value === "string" && value.trim()) {
+              config[action.id] = normalizeShortcutCombo(value);
+            }
+          }
+        }
+      }
+      catch (e) {
+        // A malformed pref falls back to the defaults.
+      }
+      return config;
+    }
+
+    getShortcut(actionId) {
+      return this.getShortcutConfig()[actionId] || "";
+    }
+
+    shortcutTitle(base, actionId) {
+      if (!this.shortcutsEnabled()) {
+        return base;
+      }
+      const key = this.getShortcut(actionId);
+      return key ? `${base}（快捷键：${key}）` : base;
+    }
+
+    shortcutConflictWarning(combo) {
+      const value = normalizeShortcutCombo(combo);
+      if (!value || value === "Shift+Tab") {
+        return "";
+      }
+      const parts = value.split("+");
+      const key = parts[parts.length - 1];
+      const ctrl = parts.includes("Ctrl");
+      const alt = parts.includes("Alt");
+      const shift = parts.includes("Shift");
+      const meta = parts.includes("Meta");
+      if (value === "Ctrl+Alt+Shift+I") {
+        return "Ctrl+Alt+Shift+I 与 Zotero「从剪贴板导入」快捷键相同，可能同时触发。";
+      }
+      if (alt && !ctrl && !meta) {
+        return "Alt+… 可能触发 Zotero 或 Windows 的菜单/系统快捷键，建议改用 Ctrl+Alt+…。";
+      }
+      if (!ctrl && !alt && !meta) {
+        return "该组合键没有 Ctrl/Alt/Meta，可能与 Zotero 的焦点移动、功能键或菜单快捷键冲突。";
+      }
+      if (ctrl && !alt && !shift) {
+        return "Ctrl+… 可能被 Zotero 或浏览器占用（如查找、复制、同步等），建议改用 Ctrl+Alt+…。";
+      }
+      if (ctrl && shift && !alt && !meta) {
+        return "Ctrl+Shift+… 可能与 Zotero 的导入、复制引文/参考文献等快捷键冲突，建议改用 Ctrl+Alt+…。";
+      }
+      if (["Tab", "Escape", "Enter", "Space"].includes(key) && !ctrl && !alt && !meta) {
+        return "该按键是 Zotero 的常用焦点/操作键，可能同时触发 Zotero 行为。";
+      }
+      return "";
+    }
+
+    setShortcut(actionId, combo) {
+      const action = SHORTCUT_ACTIONS.find((item) => item.id === actionId);
+      if (!action) {
+        return { ok: false, error: "未知的快捷键动作。" };
+      }
+      const normalized = normalizeShortcutCombo(combo);
+      if (!normalized) {
+        return { ok: false, error: "请按下一个包含字母、数字或功能键的组合键。" };
+      }
+      const config = this.getShortcutConfig();
+      for (const item of SHORTCUT_ACTIONS) {
+        if (item.id === actionId) {
+          continue;
+        }
+        if ((config[item.id] || "").toLowerCase() === normalized.toLowerCase()) {
+          return {
+            ok: false,
+            error: `快捷键 ${normalized} 已被“${item.label}”使用，请先修改或恢复默认快捷键。`,
+          };
+        }
+      }
+      config[actionId] = normalized;
+      this.setPref("shortcuts", JSON.stringify(config));
+      this.refreshShortcutTitles();
+      return {
+        ok: true,
+        config,
+        warning: this.shortcutConflictWarning(normalized),
+      };
+    }
+
+    resetShortcuts() {
+      this.setPref("shortcuts", "{}");
+      this.refreshShortcutTitles();
+      return this.getShortcutConfig();
+    }
+
+    refreshShortcutTitles() {
+      const seen = new Set();
+      for (const state of this.activePins.values()) {
+        if (state && !state.destroyed) {
+          seen.add(state);
+          try {
+            this.updateShortcutTitles(state);
+          }
+          catch (e) {
+            // A closing reader can invalidate its DOM mid-iteration.
+          }
+        }
+      }
+      try {
+        for (const reader of Zotero.Reader._readers || []) {
+          const doc = reader._iframeWindow && reader._iframeWindow.document;
+          if (!doc) {
+            continue;
+          }
+          for (const panel of doc.querySelectorAll(".zst-panel")) {
+            const state = panel.__zstState;
+            if (state && !state.destroyed && !seen.has(state)) {
+              seen.add(state);
+              try {
+                this.updateShortcutTitles(state);
+              }
+              catch (e) {
+                // Ignore a panel that is being torn down.
+              }
+            }
+          }
+        }
+      }
+      catch (e) {
+        // A closing reader can disappear while iterating.
+      }
+    }
+
+    updateShortcutTitles(state) {
+      if (!state || state.destroyed || !state.refs) {
+        return;
+      }
+      const refs = state.refs;
+      if (refs.engineSelect) {
+        refs.engineSelect.title = this.shortcutTitle(
+          state.mode === "dict"
+            ? "词典来源（也可以在这里临时切换）"
+            : "翻译渠道（也可以在这里临时切换）",
+          "engineNext"
+        );
+      }
+      if (refs.styleButton) {
+        refs.styleButton.title = this.shortcutTitle("调整译文字号和行间距", "fontStyle");
+      }
+      if (refs.refresh) {
+        refs.refresh.title = this.shortcutTitle("重新翻译 / 重新查词", "refresh");
+      }
+      if (refs.settings) {
+        refs.settings.title = this.shortcutTitle("打开划词翻译设置", "settings");
+      }
+      if (refs.highlight) {
+        refs.highlight.title = this.shortcutTitle("保存为高亮标注", "highlight");
+      }
+      if (refs.underline) {
+        refs.underline.title = this.shortcutTitle("保存为下划线标注", "underline");
+      }
+      if (refs.dictToggle) {
+        refs.dictToggle.title = this.shortcutTitle(
+          state.mode === "dict"
+            ? "把当前单词当作普通文本翻译"
+            : "按单词查词典（词性 + 释义）",
+          "dictToggle"
+        );
+      }
+      if (refs.copy) {
+        refs.copy.title = this.shortcutTitle("复制译文", "copy");
+      }
+      if (refs.speak) {
+        refs.speak.title = this.shortcutTitle("朗读译文", "speak");
+      }
+      if (refs.clearContinuous) {
+        refs.clearContinuous.title = this.shortcutTitle(
+          "清空连续翻译已拼接的原文和译文",
+          "clear"
+        );
+      }
+      if (refs.themeButton) {
+        const themeId = state.themeId || this.resolveThemeId(state);
+        const label = THEME_LABELS[themeId] || THEME_LABELS.original;
+        refs.themeButton.title = this.shortcutTitle(
+          `主题：${label}（点击切换）`,
+          "theme"
+        );
+      }
+      this.updateContinuousButton(state);
+      this.updatePinButton(state);
+      this.updateLockButton(state);
+    }
+
+    onPanelKeydown(state, event) {
+      if (!this.shortcutsEnabled() || !state || state.destroyed) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target &&
+        target.closest &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      if (this.handleShortcut(state, event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    }
+
+    handleShortcut(state, event) {
+      if (!this.shortcutsEnabled()) {
+        return false;
+      }
+      const combo = eventShortcut(event);
+      if (!combo) {
+        return false;
+      }
+      const config = this.getShortcutConfig();
+      const action = SHORTCUT_ACTIONS.find(
+        (item) => (config[item.id] || "").toLowerCase() === combo.toLowerCase()
+      );
+      if (!action) {
+        return false;
+      }
+      if (this.handledShortcutEvents.has(event)) {
+        return true;
+      }
+      const now = Date.now();
+      const toggleAction =
+        action.id === "pin" || action.id === "continuous" || action.id === "lock";
+      if (
+        toggleAction &&
+        state.shortcutLastAction &&
+        state.shortcutLastAction.id === action.id &&
+        now - state.shortcutLastAction.time < 250
+      ) {
+        // The same key can arrive through more than one reader layer (for
+        // example a forwarded iframe event). Never toggle a button twice.
+        return true;
+      }
+      this.handledShortcutEvents.add(event);
+      if (toggleAction) {
+        state.shortcutLastAction = { id: action.id, time: now };
+      }
+      switch (action.id) {
+        case "engineNext":
+          this.cycleEngine(state);
+          return true;
+        case "theme":
+          this.cycleTheme(state);
+          return true;
+        case "fontStyle":
+          this.toggleStyleRow(state);
+          return true;
+        case "refresh":
+          if (state.mode === "dict") {
+            this.lookupDictionary(state, true);
+          }
+          else {
+            this.runTranslation(state, true, true);
+          }
+          return true;
+        case "settings":
+          this.openPreferences();
+          return true;
+        case "lock":
+          this.toggleLock(state);
+          return true;
+        case "continuous":
+          this.toggleContinuous(state);
+          return true;
+        case "pin":
+          this.togglePin(state);
+          return true;
+        case "highlight":
+          this.saveAnnotation(state, "highlight");
+          return true;
+        case "underline":
+          this.saveAnnotation(state, "underline");
+          return true;
+        case "dictToggle":
+          this.switchMode(state, state.mode === "dict" ? "translate" : "dict");
+          return true;
+        case "copy":
+          this.copyTranslation(state);
+          return true;
+        case "speak":
+          this.speak(state, state.mode === "dict" ? "us" : "");
+          return true;
+        case "clear":
+          this.clearContent(state);
+          return true;
+        default:
+          return false;
+      }
+    }
+
+    cycleEngine(state) {
+      if (!state || state.destroyed) {
+        return;
+      }
+      if (state.mode === "dict") {
+        const ids = SelectionTranslatorDictionary.sourceList()
+          .map((source) => source.id)
+          .filter((id) => id !== "choose");
+        if (!ids.length) {
+          return;
+        }
+        const index = Math.max(0, ids.indexOf(state.dictSource));
+        const next = ids[(index + 1) % ids.length];
+        state.dictSource = next;
+        this.setPref("dictionarySource", next);
+        state.refs.engineSelect.value = `dict:${next}`;
+        this.lookupDictionary(state, true);
+        return;
+      }
+      const ids = E.ENGINE_IDS.slice();
+      const index = Math.max(0, ids.indexOf(state.engineId));
+      const next = ids[(index + 1) % ids.length];
+      state.engineId = next;
+      this.setPref("engine", next);
+      state.refs.engineSelect.value = next;
+      if (state.continuous) {
+        state.requestId += 1;
+        this.scheduleContinuousTranslation(state, state.requestId);
+      }
+      else {
+        this.runTranslation(state, true);
+      }
+    }
+
+    toggleStyleRow(state) {
+      const refs = state && state.refs;
+      if (!refs || !refs.styleRow || !refs.styleButton) {
+        return;
+      }
+      const opening = !!refs.styleRow.hidden;
+      refs.styleRow.hidden = !opening;
+      refs.styleButton.classList.toggle("active", opening);
+      if (opening) {
+        // Put the caret in the size field, selected, so ↑/↓ works immediately
+        // after either the Aa button or the Alt+A shortcut.
+        setTimeout(() => {
+          if (!state.destroyed && refs.fontInput) {
+            try {
+              refs.fontInput.focus();
+              refs.fontInput.select();
+            }
+            catch (e) {
+              // Ignore.
+            }
+          }
+        }, 0);
+      }
+      else if (refs.styleButton) {
+        try {
+          refs.styleButton.focus();
+        }
+        catch (e) {
+          // Ignore.
+        }
+      }
+    }
+
+    onStyleInputKeydown(state, event, field) {
+      if (!state || state.destroyed || !state.refs) {
+        return;
+      }
+      const refs = state.refs;
+      const font = field === "font";
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        const next = font ? refs.lineInput : refs.fontInput;
+        if (next) {
+          try {
+            next.focus();
+            next.select();
+          }
+          catch (e) {
+            // Ignore.
+          }
+        }
+        return;
+      }
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          if (!refs.styleRow.hidden) {
+            this.toggleStyleRow(state);
+          }
+        }
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const up = event.key === "ArrowUp";
+      if (font) {
+        const next = clampNumber(
+          state.fontSize + (up ? 1 : -1),
+          8,
+          48,
+          state.fontSize
+        );
+        state.fontSize = next;
+        if (refs.fontInput) {
+          refs.fontInput.value = String(next);
+        }
+        state.panel.style.setProperty("--zst-font-size", `${next}px`);
+        this.setPref("fontSize", next);
+        this.setStatus(state, `字号 ${next}px（已保存）`, "ok");
+      }
+      else {
+        const next = clampNumber(
+          state.lineHeight + (up ? 0.05 : -0.05),
+          1,
+          3,
+          state.lineHeight
+        );
+        state.lineHeight = Number(next.toFixed(2));
+        if (refs.lineInput) {
+          refs.lineInput.value = String(state.lineHeight);
+        }
+        state.panel.style.setProperty("--zst-line-height", String(state.lineHeight));
+        this.setPref("lineHeight", state.lineHeight);
+        this.setStatus(state, `行距 ${state.lineHeight.toFixed(2)}（已保存）`, "ok");
+      }
+      this.autoSizePanel(state);
+    }
+
+    copyTranslation(state) {
+      if (!state || !state.translation) {
+        this.setStatus(state, "还没有可复制的译文", "err");
+        return;
+      }
+      try {
+        Zotero.Utilities.Internal.copyTextToClipboard(state.translation);
+        this.setStatus(state, "已复制译文", "ok");
+      }
+      catch (e) {
+        this.setStatus(state, "复制失败", "err");
+      }
+    }
+
+    onPanelWheel(state, event) {
+      if (!state || state.destroyed || !event.ctrlKey) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.deltaY < 0 ? 1 : event.deltaY > 0 ? -1 : 0;
+      if (!direction) {
+        return;
+      }
+      const next = clampNumber(state.fontSize + direction, 8, 48, state.fontSize);
+      if (next === state.fontSize) {
+        this.setStatus(state, `字号已是 ${next}px`, "");
+        return;
+      }
+      state.fontSize = next;
+      state.panel.style.setProperty("--zst-font-size", `${next}px`);
+      if (state.refs.fontInput) {
+        state.refs.fontInput.value = String(next);
+      }
+      this.setPref("fontSize", next);
+      this.autoSizePanel(state);
+      this.setStatus(state, `字号 ${next}px（已保存为默认）`, "ok");
+    }
+
+    lockIcon(doc, locked) {
+      const NS = "http://www.w3.org/2000/svg";
+      const svg = doc.createElementNS(NS, "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("width", "14");
+      svg.setAttribute("height", "14");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "1.3");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      const add = (tag, attrs) => {
+        const node = doc.createElementNS(NS, tag);
+        for (const [name, value] of Object.entries(attrs || {})) {
+          node.setAttribute(name, String(value));
+        }
+        svg.appendChild(node);
+        return node;
+      };
+      add("path", { d: "M5.2 7V5.4a2.8 2.8 0 0 1 5.6 0V7" });
+      const body = add("rect", {
+        x: "3.2",
+        y: "7",
+        width: "9.6",
+        height: "6.4",
+        rx: "1.3",
+      });
+      if (locked) {
+        body.setAttribute("fill", "currentColor");
+        body.setAttribute("fill-opacity", "0.16");
+      }
+      add("circle", {
+        cx: "8",
+        cy: "9.8",
+        r: "0.7",
+        fill: "currentColor",
+        stroke: "none",
+      });
+      add("path", { d: "M8 10.5v1.2" });
+      return svg;
+    }
+
+    updateLockButton(state) {
+      const button = state && state.refs && state.refs.lock;
+      if (!button) {
+        return;
+      }
+      button.hidden = state.mode === "dict";
+      const locked = !!state.locked;
+      button.classList.toggle("active", locked);
+      button.setAttribute("aria-pressed", locked ? "true" : "false");
+      button.replaceChildren(this.lockIcon(state.doc, locked));
+      button.title = this.shortcutTitle(
+        locked
+          ? "已锁定当前译文（点击解锁，之后划词会更新卡片）"
+          : "锁定当前译文，划词只做标注，不再更新卡片",
+        "lock"
+      );
+    }
+
+    toggleLock(state) {
+      if (!state || !state.panel || state.mode === "dict") {
+        return;
+      }
+      if (!state.locked) {
+        // Lock and continuous mode have opposite goals: one freezes the
+        // current translation, the other appends to it.
+        if (state.continuous) {
+          state.continuous = false;
+          this.updateContinuousButton(state);
+        }
+        state.locked = true;
+        if (!state.pinned) {
+          this.pinPanel(state);
+        }
+        this.updateLockButton(state);
+        this.setStatus(
+          state,
+          "已锁定当前译文：划词只做标注，不再更新卡片",
+          "ok"
+        );
+      }
+      else {
+        state.locked = false;
+        this.updateLockButton(state);
+        this.setStatus(state, "已解锁：后续划词会更新当前卡片", "");
       }
     }
 
@@ -685,7 +1526,7 @@ var ZoteroSelectionTranslator = (function () {
       const themeId = state.themeId || this.resolveThemeId(state);
       const label = THEME_LABELS[themeId] || THEME_LABELS.original;
       button.replaceChildren(this.themeIcon(state.doc, themeId));
-      button.title = `主题：${label}（点击切换）`;
+      button.title = this.shortcutTitle(`主题：${label}（点击切换）`, "theme");
       button.setAttribute("aria-label", `主题：${label}，点击切换`);
       button.dataset.zstTheme = themeId;
     }
@@ -812,6 +1653,7 @@ var ZoteroSelectionTranslator = (function () {
       }
       this.mainWindows.add(win);
       try {
+        this.installMainWindowShortcuts(win);
         const doc = win.document;
         const toolsPopup = doc.getElementById("menu_ToolsPopup");
         if (!toolsPopup) {
@@ -839,11 +1681,139 @@ var ZoteroSelectionTranslator = (function () {
       }
       this.mainWindows.delete(win);
       try {
+        const listener = win.__zstMainShortcutKeydown;
+        if (listener) {
+          if (listener.kind === "system") {
+            Services.els.removeSystemEventListener(
+              win,
+              "keydown",
+              listener.handler,
+              true
+            );
+          }
+          else {
+            win.removeEventListener("keydown", listener.handler, listener.options);
+          }
+          delete win.__zstMainShortcutKeydown;
+        }
+      }
+      catch (e) {
+        // Window may already be gone.
+      }
+      try {
         win.document.getElementById("zst-open-settings")?.remove();
       }
       catch (e) {
         // Window may already be gone.
       }
+    }
+
+    installMainWindowShortcuts(win) {
+      if (!win || win.__zstMainShortcutKeydown) {
+        return;
+      }
+      const handler = (event) => this.onMainWindowKeydownCapture(event);
+      let listener = null;
+      try {
+        Services.els.addSystemEventListener(win, "keydown", handler, true);
+        listener = { handler, kind: "system" };
+      }
+      catch (e) {
+        const options = { capture: true, mozSystemGroup: true };
+        try {
+          win.addEventListener("keydown", handler, options);
+          listener = { handler, kind: "mozSystemGroup", options };
+        }
+        catch (e2) {
+          const fallback = { capture: true };
+          win.addEventListener("keydown", handler, fallback);
+          listener = { handler, kind: "capture", options: fallback };
+        }
+      }
+      win.__zstMainShortcutKeydown = listener;
+    }
+
+    onMainWindowKeydownCapture(event) {
+      if (!this.shortcutsEnabled()) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target &&
+        target.closest &&
+        target.closest("input, textarea, select, textbox, [contenteditable='true']")
+      ) {
+        return;
+      }
+      const state = this.findActiveCardState();
+      if (!state) {
+        return;
+      }
+      if (this.handleShortcut(state, event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    }
+
+    findActiveCardState() {
+      try {
+        const readers = Zotero.Reader._readers || [];
+        let ordered = readers;
+        try {
+          const mainWin = Zotero.getMainWindow();
+          const selectedID =
+            mainWin && mainWin.Zotero_Tabs && mainWin.Zotero_Tabs.selectedID;
+          if (selectedID) {
+            const active = readers.find((reader) => reader.tabID === selectedID);
+            if (active) {
+              ordered = [active].concat(readers.filter((reader) => reader !== active));
+            }
+          }
+        }
+        catch (e) {
+          // Fall back to reader order.
+        }
+        for (const reader of ordered) {
+          const pinned = this.getActivePin(reader);
+          if (pinned && !pinned.destroyed) {
+            return pinned;
+          }
+          const doc = reader._iframeWindow && reader._iframeWindow.document;
+          if (!doc) {
+            continue;
+          }
+          let best = null;
+          for (const panel of doc.querySelectorAll(".zst-panel")) {
+            const state = panel.__zstState;
+            if (!state || state.destroyed || !panel.isConnected) {
+              continue;
+            }
+            if (!best || (state.lastShownAt || 0) > (best.lastShownAt || 0)) {
+              best = state;
+            }
+          }
+          if (best) {
+            return best;
+          }
+          // The selection popup may already have been removed in the same
+          // keypress. Use the last card from this reader briefly so
+          // pin / continuous can reattach it.
+          const remembered = this.cardStates.get(doc);
+          if (
+            remembered &&
+            !remembered.destroyed &&
+            remembered.panel &&
+            Date.now() - (remembered.lastShownAt || 0) <= CARD_SHORTCUT_FALLBACK_MS
+          ) {
+            return remembered;
+          }
+        }
+      }
+      catch (e) {
+        // A reader can close while its window is being iterated.
+      }
+      return null;
     }
 
     openPreferences() {
@@ -880,6 +1850,11 @@ var ZoteroSelectionTranslator = (function () {
       if (!annotation || !annotation.text || !String(annotation.text).trim()) {
         return;
       }
+      // Page numbers, years and figure numbers are not prose; do not send
+      // them to a translation engine or show a translation card for them.
+      if (isNumericOnly(annotation.text)) {
+        return;
+      }
       const sourcePref = this.getPref("sourceLanguage");
       const isChinese =
         sourcePref === "zh-CN" ||
@@ -895,6 +1870,12 @@ var ZoteroSelectionTranslator = (function () {
         this.ensureReaderStyles(event.doc);
         const activePin = this.getActivePin(event.reader);
         if (activePin) {
+          // A locked card must not change while the user selects text for a
+          // highlight/underline annotation. Returning here leaves Zotero's
+          // native selection popup in charge of that selection.
+          if (activePin.locked) {
+            return;
+          }
           this.updatePinnedTranslation(activePin, event);
           return;
         }
@@ -949,13 +1930,277 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     ensureReaderStyles(doc) {
-      if (!doc || !this.cssText || doc.getElementById("zst-reader-styles")) {
+      if (!doc) {
+        return;
+      }
+      const win = doc.defaultView;
+      if (win && !win.__zstShortcutKeydown) {
+        const handler = (event) => this.onReaderKeydownCapture(doc, event);
+        let listener = null;
+        try {
+          // Gecko's system event group is dispatched before the reader's
+          // normal capture handlers, so a card shortcut can be consumed before
+          // Zotero's own focus/key handling runs.
+          Services.els.addSystemEventListener(win, "keydown", handler, true);
+          listener = { win, handler, kind: "system" };
+        }
+        catch (e) {
+          const options = { capture: true, mozSystemGroup: true };
+          try {
+            win.addEventListener("keydown", handler, options);
+            listener = { win, handler, kind: "mozSystemGroup", options };
+          }
+          catch (e2) {
+            const fallback = { capture: true };
+            win.addEventListener("keydown", handler, fallback);
+            listener = { win, handler, kind: "capture", options: fallback };
+          }
+        }
+        win.__zstShortcutKeydown = listener;
+      }
+      this.installNestedShortcutListeners(doc);
+      if (!this.cssText || doc.getElementById("zst-reader-styles")) {
         return;
       }
       const style = doc.createElement("style");
       style.id = "zst-reader-styles";
       style.textContent = this.cssText;
       (doc.head || doc.documentElement).appendChild(style);
+    }
+
+    installNestedShortcutListeners(doc) {
+      let frames;
+      try {
+        frames = doc.querySelectorAll("iframe");
+      }
+      catch (e) {
+        return;
+      }
+      for (const frame of frames) {
+        this.installFrameShortcutListener(frame, doc);
+        if (!frame.__zstShortcutLoadHook) {
+          frame.__zstShortcutLoadHook = () => this.installFrameShortcutListener(frame, doc);
+          frame.addEventListener("load", frame.__zstShortcutLoadHook);
+        }
+      }
+    }
+
+    installFrameShortcutListener(frame, doc) {
+      let win = null;
+      try {
+        win = frame.contentWindow;
+      }
+      catch (e) {
+        return;
+      }
+      if (!win || win.__zstShortcutKeydown) {
+        return;
+      }
+      const handler = (event) => this.onReaderKeydownCapture(doc, event);
+      let listener = null;
+      try {
+        Services.els.addSystemEventListener(win, "keydown", handler, true);
+        listener = { win, handler, kind: "system" };
+      }
+      catch (e) {
+        const options = { capture: true, mozSystemGroup: true };
+        try {
+          win.addEventListener("keydown", handler, options);
+          listener = { win, handler, kind: "mozSystemGroup", options };
+        }
+        catch (e2) {
+          const fallback = { capture: true };
+          win.addEventListener("keydown", handler, fallback);
+          listener = { win, handler, kind: "capture", options: fallback };
+        }
+      }
+      win.__zstShortcutKeydown = listener;
+    }
+
+    detachShortcutListener(target) {
+      if (!target) {
+        return;
+      }
+      const listener = target.__zstShortcutKeydown;
+      if (!listener) {
+        return;
+      }
+      try {
+        if (listener.kind === "system") {
+          Services.els.removeSystemEventListener(
+            listener.win,
+            "keydown",
+            listener.handler,
+            true
+          );
+        }
+        else {
+          listener.win.removeEventListener(
+            "keydown",
+            listener.handler,
+            listener.options
+          );
+        }
+      }
+      catch (e) {
+        // The window may already be gone.
+      }
+      delete target.__zstShortcutKeydown;
+    }
+
+    /**
+     * Reader shortcuts are scoped to the translation card rather than to
+     * keyboard focus: as long as a card is open in this reader, the shortcut
+     * works from the PDF, reader chrome or Zotero main window. The listener
+     * runs in Gecko's earlier event group, and handled events stop here so the
+     * same key cannot also trigger a reader/Zotero action.
+     */
+    onReaderKeydownCapture(doc, event) {
+      if (!this.shortcutsEnabled()) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target &&
+        target.closest &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      const active = doc.activeElement;
+      let panel =
+        (target && target.closest && target.closest(".zst-panel")) ||
+        (active && active.closest && active.closest(".zst-panel"));
+      if (!panel) {
+        // Focus may be on the PDF page or Zotero chrome. Shortcuts still
+        // target the newest visible card in this reader.
+        try {
+          let best = null;
+          for (const candidate of doc.querySelectorAll(".zst-panel")) {
+            const candidateState = candidate.__zstState;
+            if (
+              !candidateState ||
+              candidateState.destroyed ||
+              !candidate.isConnected
+            ) {
+              continue;
+            }
+            if (
+              !best ||
+              (candidateState.lastShownAt || 0) > (best.__zstState.lastShownAt || 0)
+            ) {
+              best = candidate;
+            }
+          }
+          panel = best;
+        }
+        catch (e) {
+          panel = null;
+        }
+      }
+      let state = panel && panel.__zstState;
+      if (!state) {
+        // Zotero may already have removed the selection popup in the same
+        // keypress. Keep the last card usable briefly so pin / continuous can
+        // reattach it instead of silently doing nothing.
+        try {
+          const remembered = this.cardStates.get(doc);
+          if (
+            remembered &&
+            !remembered.destroyed &&
+            remembered.panel &&
+            Date.now() - (remembered.lastShownAt || 0) <= CARD_SHORTCUT_FALLBACK_MS
+          ) {
+            state = remembered;
+            panel = remembered.panel;
+          }
+        }
+        catch (e) {
+          // Ignore a closed document.
+        }
+      }
+      if (!state || state.destroyed) {
+        return;
+      }
+      if (this.handleShortcut(state, event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    }
+
+    /**
+     * The reader's FocusManager handles Tab at the window capture phase, which
+     * can run before a plugin listener. While a card is open, make its
+     * group-tab routine a no-op for the bound Tab shortcut so the shortcut is
+     * handled by the card only and never moves Zotero's toolbar/sidebar/tab
+     * focus at the same time.
+     */
+    installReaderFocusGuard(reader) {
+      try {
+        const focusManager =
+          reader && reader._internalReader && reader._internalReader._focusManager;
+        if (!focusManager || focusManager.__zstTabGuard) {
+          return;
+        }
+        const original = focusManager.tabToGroup;
+        if (typeof original !== "function") {
+          return;
+        }
+        const plugin = this;
+        focusManager.__zstOriginalTabToGroup = original;
+        focusManager.__zstTabGuard = function (reverse) {
+          if (!plugin.shortcutsEnabled()) {
+            return original.call(this, reverse);
+          }
+          try {
+            const doc = reader._iframeWindow && reader._iframeWindow.document;
+            const active = doc && doc.activeElement;
+            if (
+              active &&
+              active.closest &&
+              active.closest("input, textarea, select, [contenteditable='true']")
+            ) {
+              return original.call(this, reverse);
+            }
+            let hasCard = false;
+            if (doc) {
+              const panels = doc.querySelectorAll(".zst-panel");
+              for (const panel of panels) {
+                const state = panel.__zstState;
+                if (state && !state.destroyed && panel.isConnected) {
+                  hasCard = true;
+                  break;
+                }
+              }
+            }
+            if (!hasCard) {
+              return original.call(this, reverse);
+            }
+            const config = plugin.getShortcutConfig();
+            const key = reverse ? "Shift+Tab" : "Tab";
+            if (Object.values(config).includes(key)) {
+              return;
+            }
+          }
+          catch (e) {
+            // Fall back to the reader's normal focus handling.
+          }
+          return original.call(this, reverse);
+        };
+        focusManager.tabToGroup = focusManager.__zstTabGuard;
+      }
+      catch (e) {
+        this.log("focus guard failed", e);
+      }
+    }
+
+    rememberCard(state) {
+      if (!state || !state.doc) {
+        return;
+      }
+      state.lastShownAt = Date.now();
+      this.cardStates.set(state.doc, state);
     }
 
     buildSelectionPanel(event) {
@@ -971,6 +2216,10 @@ var ZoteroSelectionTranslator = (function () {
       if (!cleanText) {
         return null;
       }
+      if (isNumericOnly(cleanText)) {
+        return null;
+      }
+      this.installReaderFocusGuard(reader);
 
       const width = clampNumber(this.getPref("popupWidth"), 300, 620, 380);
       const fontSize = clampNumber(this.getPref("fontSize"), 8, 48, 14);
@@ -990,6 +2239,49 @@ var ZoteroSelectionTranslator = (function () {
 
       panel.addEventListener("pointerdown", (e) => e.stopPropagation());
       panel.addEventListener("mousedown", (e) => e.stopPropagation());
+      panel.tabIndex = -1;
+      const focusCardFromPointer = (event) => {
+        const target = event.target;
+        if (
+          target &&
+          target.closest &&
+          target.closest(
+            "button, input, textarea, select, a, label, [contenteditable='true']"
+          )
+        ) {
+          return;
+        }
+        try {
+          const selection = doc.defaultView && doc.defaultView.getSelection
+            ? doc.defaultView.getSelection()
+            : null;
+          if (selection && String(selection).trim()) {
+            return;
+          }
+        }
+        catch (e) {
+          // Fall through and focus the card.
+        }
+        // Focus after the browser has applied its own mousedown focus default,
+        // so clicking plain translation text reliably gives the card focus
+        // instead of leaving focus on the PDF iframe.
+        setTimeout(() => {
+          if (!state.destroyed) {
+            try {
+              panel.focus({ preventScroll: true });
+            }
+            catch (e) {
+              // Ignore.
+            }
+          }
+        }, 0);
+      };
+      panel.addEventListener("pointerup", focusCardFromPointer);
+      panel.addEventListener("click", focusCardFromPointer);
+      panel.addEventListener("keydown", (event) => this.onPanelKeydown(state, event));
+      panel.addEventListener("wheel", (event) => this.onPanelWheel(state, event), {
+        passive: false,
+      });
 
       const hasDictionary = typeof SelectionTranslatorDictionary !== "undefined";
       const dictSource = hasDictionary ? this.getPref("dictionarySource") : "choose";
@@ -1024,7 +2316,9 @@ var ZoteroSelectionTranslator = (function () {
         fontSize,
         lineHeight,
         pinned: false,
+        locked: false,
         continuous: false,
+        continuousFresh: false,
         continuousTimer: null,
         manualSize: false,
         segments: [],
@@ -1112,7 +2406,8 @@ var ZoteroSelectionTranslator = (function () {
           this.lookupDictionary(state, true);
         }
         else {
-          this.runTranslation(state, true);
+          // A manual refresh must hit the engine again, not the session cache.
+          this.runTranslation(state, true, true);
         }
       });
 
@@ -1169,7 +2464,11 @@ var ZoteroSelectionTranslator = (function () {
       lineInput.value = String(state.lineHeight);
       lineInput.title = "译文行间距倍数（1.0–3.0）";
       lineItem.append(lineInput);
-      styleRow.append(fontItem, lineItem);
+      const styleHint = h(doc, "span", {
+        className: "zst-style-hint",
+        text: "↑↓ 调整 · ←→ 切换",
+      });
+      styleRow.append(fontItem, lineItem, styleHint);
 
       const applyTextStyle = () => {
         const nextFont = clampNumber(fontInput.value, 8, 48, state.fontSize);
@@ -1181,6 +2480,12 @@ var ZoteroSelectionTranslator = (function () {
       };
       fontInput.addEventListener("input", applyTextStyle);
       lineInput.addEventListener("input", applyTextStyle);
+      fontInput.addEventListener("keydown", (event) =>
+        this.onStyleInputKeydown(state, event, "font")
+      );
+      lineInput.addEventListener("keydown", (event) =>
+        this.onStyleInputKeydown(state, event, "line")
+      );
       fontInput.addEventListener("change", () => {
         applyTextStyle();
         fontInput.value = String(state.fontSize);
@@ -1191,10 +2496,7 @@ var ZoteroSelectionTranslator = (function () {
         lineInput.value = String(state.lineHeight);
         this.setPref("lineHeight", state.lineHeight);
       });
-      styleButton.addEventListener("click", () => {
-        styleRow.hidden = !styleRow.hidden;
-        styleButton.classList.toggle("active", !styleRow.hidden);
-      });
+      styleButton.addEventListener("click", () => this.toggleStyleRow(state));
 
       header.append(
         logo,
@@ -1218,6 +2520,20 @@ var ZoteroSelectionTranslator = (function () {
         className: "zst-result-title",
         text: state.mode === "dict" ? "词典" : "译文",
       });
+      // "锁定" sits to the left of "连续翻译". A locked card keeps its
+      // current translation while the reader selects text for a new
+      // highlight/underline annotation.
+      const lock = h(doc, "button", {
+        className: "zst-lock-btn",
+        attrs: {
+          type: "button",
+          title: "锁定当前译文，划词只做标注，不再更新卡片",
+          "aria-label": "锁定当前译文",
+          "aria-pressed": "false",
+        },
+      });
+      lock.appendChild(this.lockIcon(doc, false));
+      lock.addEventListener("click", () => this.toggleLock(state));
       // "连续翻译" sits immediately left of the pin button. Turning it on
       // pins the card and makes later selections append to the same card.
       const continuous = h(doc, "button", {
@@ -1242,7 +2558,13 @@ var ZoteroSelectionTranslator = (function () {
         },
       });
       pin.addEventListener("click", () => this.togglePin(state));
-      resultHead.append(resultTitle, h(doc, "span", { className: "zst-head-spacer" }), continuous, pin);
+      resultHead.append(
+        resultTitle,
+        h(doc, "span", { className: "zst-head-spacer" }),
+        lock,
+        continuous,
+        pin
+      );
       const result = h(doc, "div", { className: "zst-result" });
       resultWrap.append(resultHead, result);
       const status = h(doc, "span", { className: "zst-status" });
@@ -1339,18 +2661,7 @@ var ZoteroSelectionTranslator = (function () {
         text: "复制译文",
         attrs: { type: "button" },
       });
-      copy.addEventListener("click", () => {
-        if (!state.translation) {
-          return;
-        }
-        try {
-          Zotero.Utilities.Internal.copyTextToClipboard(state.translation);
-          this.setStatus(state, "已复制译文", "ok");
-        }
-        catch (e) {
-          this.setStatus(state, "复制失败", "err");
-        }
-      });
+      copy.addEventListener("click", () => this.copyTranslation(state));
 
       const speak = h(doc, "button", {
         className: "zst-link-btn",
@@ -1377,8 +2688,11 @@ var ZoteroSelectionTranslator = (function () {
         // The word itself is already the dictionary heading; the source block
         // would only duplicate it.
         source.hidden = true;
+        lock.hidden = true;
         panel.classList.add("zst-dict-mode");
       }
+      panel.__zstState = state;
+      this.rememberCard(state);
       panel.append(header, styleRow, source, resultWrap, actionRow, commentLabel, footer);
 
       state.refs = {
@@ -1392,10 +2706,12 @@ var ZoteroSelectionTranslator = (function () {
         fontInput,
         lineInput,
         refresh,
+        settings,
         source,
         resultWrap,
         resultHead,
         resultTitle,
+        lock,
         continuous,
         pin,
         result,
@@ -1415,6 +2731,8 @@ var ZoteroSelectionTranslator = (function () {
 
       this.setActionState(state, false);
       this.updateClearButton(state);
+      this.updateLockButton(state);
+      this.updateShortcutTitles(state);
       this.applyTheme(state);
       this.applyEngineSelectWidth(state);
       if (state.mode === "dict") {
@@ -1455,7 +2773,10 @@ var ZoteroSelectionTranslator = (function () {
           add(`dict:${source.id}`, `词典 · ${source.label}`, source.id === state.dictSource);
         }
         add("mode:translate", "整句翻译（使用翻译引擎）", false);
-        select.title = "词典来源（也可以在这里临时切换）";
+        select.title = this.shortcutTitle(
+          "词典来源（也可以在这里临时切换）",
+          "engineNext"
+        );
       }
       else {
         add(
@@ -1466,7 +2787,10 @@ var ZoteroSelectionTranslator = (function () {
         for (const id of E.ENGINE_IDS) {
           add(id, E.engineLabel(id), id === state.engineId);
         }
-        select.title = "翻译渠道（也可以在这里临时切换）";
+        select.title = this.shortcutTitle(
+          "翻译渠道（也可以在这里临时切换）",
+          "engineNext"
+        );
       }
     }
 
@@ -1496,8 +2820,10 @@ var ZoteroSelectionTranslator = (function () {
       const refs = state.refs;
       if (mode === "dict") {
         state.continuous = false;
+        state.locked = false;
         refs.continuous.hidden = true;
         refs.continuous.classList.remove("active");
+        refs.lock.hidden = true;
         refs.source.hidden = true;
         refs.resultTitle.textContent = "词典";
         refs.dictToggle.textContent = "整句翻译";
@@ -1507,6 +2833,7 @@ var ZoteroSelectionTranslator = (function () {
       }
       else {
         refs.continuous.hidden = false;
+        refs.lock.hidden = false;
         refs.source.hidden = !this.getPref("showSource");
         refs.resultTitle.textContent = "译文";
         refs.dictToggle.textContent = "查词典";
@@ -1515,6 +2842,7 @@ var ZoteroSelectionTranslator = (function () {
         this.runTranslation(state, true);
       }
       this.updateClearButton(state);
+      this.updateShortcutTitles(state);
     }
 
     dictionaryCacheKey(source, word) {
@@ -2116,7 +3444,7 @@ var ZoteroSelectionTranslator = (function () {
         text: "翻译这段文字",
         attrs: { type: "button" },
       });
-      button.addEventListener("click", () => this.runTranslation(state, true));
+      button.addEventListener("click", () => this.runTranslation(state, true, true));
       prompt.append(button);
       result.replaceChildren(prompt);
       this.setActionState(state, false);
@@ -2196,10 +3524,10 @@ var ZoteroSelectionTranslator = (function () {
         text: "重试",
         attrs: { type: "button" },
       });
-      retry.addEventListener("click", () => this.runTranslation(state, true));
+      retry.addEventListener("click", () => this.runTranslation(state, true, true));
       box.append(title, body, retry);
       const raw = error && (error.body || error.message);
-      if (raw && String(raw) !== message) {
+      if (raw && String(raw) !== message && !/^\s*</.test(String(raw))) {
         const details = h(state.doc, "details", { className: "zst-error-details" });
         details.append(
           h(state.doc, "summary", { text: "技术详情" }),
@@ -2329,7 +3657,7 @@ var ZoteroSelectionTranslator = (function () {
       }
     }
 
-    async translateText({ text, engineId, sourceLang, targetLang, reader }) {
+    async translateText({ text, engineId, sourceLang, targetLang, reader, bypassCache }) {
       const clean = E.normalizeText(text);
       if (!clean) {
         throw new Error("没有可翻译的文本。");
@@ -2339,11 +3667,11 @@ var ZoteroSelectionTranslator = (function () {
       }
       const source = E.resolveSourceFor(engineId, sourceLang, clean);
       const key = this.cacheKey(engineId, source, targetLang, clean);
-      const cached = this.readCache(key);
+      const cached = bypassCache ? null : this.readCache(key);
       if (cached) {
         return { ...cached, cached: true };
       }
-      if (this.inflight.has(key)) {
+      if (!bypassCache && this.inflight.has(key)) {
         return await this.inflight.get(key);
       }
 
@@ -2402,12 +3730,16 @@ var ZoteroSelectionTranslator = (function () {
         return value;
       })();
 
-      this.inflight.set(key, task);
+      if (!bypassCache) {
+        this.inflight.set(key, task);
+      }
       try {
         return await task;
       }
       finally {
-        this.inflight.delete(key);
+        if (!bypassCache && this.inflight.get(key) === task) {
+          this.inflight.delete(key);
+        }
       }
     }
 
@@ -2429,7 +3761,7 @@ var ZoteroSelectionTranslator = (function () {
       return fallback;
     }
 
-    async runTranslation(state, force) {
+    async runTranslation(state, force, bypassCache) {
       if (state.destroyed || state.mode === "dict") {
         return;
       }
@@ -2450,6 +3782,7 @@ var ZoteroSelectionTranslator = (function () {
           sourceLang: this.getPref("sourceLanguage"),
           targetLang: this.getPref("targetLanguage"),
           reader: state.reader,
+          bypassCache: !!bypassCache,
         });
         if (state.destroyed || requestId !== state.requestId) {
           return;
@@ -2605,6 +3938,10 @@ var ZoteroSelectionTranslator = (function () {
       if (!cleanText || state.destroyed) {
         return;
       }
+      if (state.locked || isNumericOnly(cleanText)) {
+        return;
+      }
+      this.rememberCard(state);
 
       // A pinned dictionary card follows the same rule as the popup: single
       // words stay in dictionary mode, longer selections become translation.
@@ -2625,10 +3962,12 @@ var ZoteroSelectionTranslator = (function () {
         state.mode = "translate";
         state.panel.classList.remove("zst-dict-mode");
         state.refs.continuous.hidden = false;
+        state.refs.lock.hidden = false;
         state.refs.resultTitle.textContent = "译文";
         state.refs.dictToggle.textContent = "查词典";
         this.fillModeSelect(state, state.refs.engineSelect);
         this.updateClearButton(state);
+        this.updateShortcutTitles(state);
       }
 
       if (state.continuous) {
@@ -2700,9 +4039,12 @@ var ZoteroSelectionTranslator = (function () {
       button.textContent = on ? "连续中" : "连续翻译";
       button.classList.toggle("active", on);
       button.setAttribute("aria-pressed", on ? "true" : "false");
-      button.title = on
-        ? "连续翻译已开启：之后的划词会追加到本卡片，点击关闭"
-        : "连续翻译：置顶当前卡片，之后在不同位置划词会追加到同一段译文";
+      button.title = this.shortcutTitle(
+        on
+          ? "连续翻译已开启：之后的划词会追加到本卡片，点击关闭"
+          : "连续翻译：置顶当前卡片，之后在不同位置划词会追加到同一段译文",
+        "continuous"
+      );
     }
 
     updateClearButton(state) {
@@ -2719,7 +4061,7 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     toggleContinuous(state) {
-      if (!state || !state.panel || state.mode === "dict") {
+      if (!state || state.destroyed || !state.panel || state.mode === "dict") {
         return;
       }
       if (!state.continuous) {
@@ -2727,7 +4069,14 @@ var ZoteroSelectionTranslator = (function () {
           !!String(state.sourceText || "").trim() ||
           !!String(state.translation || "").trim() ||
           (state.segments && state.segments.length > 0);
+        // Locking freezes the card; continuous mode appends to it. Never keep
+        // both enabled at the same time.
+        if (state.locked) {
+          state.locked = false;
+          this.updateLockButton(state);
+        }
         state.continuous = true;
+        state.continuousFresh = true;
         // Enabling continuous mode on a card that already has content would
         // otherwise carry the old paragraph into the merged translation.
         // Clear it first so the next selection starts a fresh sequence.
@@ -2747,23 +4096,22 @@ var ZoteroSelectionTranslator = (function () {
         this.setStatus(
           state,
           hadContent
-            ? "已清空原内容，连续翻译已开启：在别处继续划词会合并后重新翻译"
-            : "连续翻译已开启：在别处继续划词会合并后重新翻译",
+            ? "已清空原内容，连续翻译已开启：请继续划词，至少两段后合并翻译"
+            : "连续翻译已开启：请继续划词，至少两段后合并翻译",
           "ok"
         );
-        // If the first fragment was never translated, start the merged
-        // translation now instead of waiting for another selection.
-        if (!String(state.translation || "").trim() && state.cleanText) {
-          state.requestId += 1;
-          this.scheduleContinuousTranslation(state, state.requestId);
-        }
+        // Do not translate the first fragment on its own. The engine is only
+        // contacted once the user has selected a second fragment, which is
+        // what prevents the "one selection, unexpected request" behavior.
       }
       else {
         state.continuous = false;
+        state.continuousFresh = false;
         this.updateClearButton(state);
         this.setStatus(state, "连续翻译已关闭", "");
       }
       this.updateContinuousButton(state);
+      this.updateShortcutTitles(state);
     }
 
     /**
@@ -2772,24 +4120,50 @@ var ZoteroSelectionTranslator = (function () {
      * independently: the engine always sees the complete paragraph.
      */
     appendContinuousSelection(state, event, rawText, cleanText, params) {
-      const last = state.segments[state.segments.length - 1];
-      if (last && last.cleanText === cleanText) {
+      if (isNumericOnly(cleanText)) {
+        this.setStatus(state, "纯数字内容不参与连续翻译", "");
+        return;
+      }
+      const mergedClean = mergeSelectionText(state.cleanText, cleanText);
+      if (mergedClean.mode === "duplicate") {
         this.flashPanel(state);
         this.setStatus(state, "这段内容已经在卡片中", "ok");
         return;
       }
+      const mergedRaw = mergeSelectionText(state.sourceText, rawText);
 
       state.continuousRollback = {
         sourceText: state.sourceText,
         cleanText: state.cleanText,
+        translation: state.translation,
+        segments: state.segments.map((item) => ({ ...item })),
+        continuousFresh: !!state.continuousFresh,
       };
       state.doc = event.doc;
       state.reader = event.reader;
       state.params = params;
       state.savedKey = "";
-      state.sourceText = joinText(state.sourceText, rawText);
-      state.cleanText = joinText(state.cleanText, cleanText);
-      state.segments.push({ sourceText: rawText, cleanText });
+
+      if (mergedClean.mode === "replace") {
+        // The user selected a superset of the current text (for example the
+        // whole paragraph after selecting two sentences). Replace instead of
+        // appending the paragraph again.
+        state.sourceText = rawText;
+        state.cleanText = cleanText;
+        state.segments = [{ sourceText: rawText, cleanText }];
+        state.continuousFresh = false;
+      }
+      else {
+        state.sourceText = mergedRaw.text;
+        state.cleanText = mergedClean.text;
+        state.segments.push({
+          sourceText: mergedRaw.added || rawText,
+          cleanText: mergedClean.added || cleanText,
+        });
+        if (state.segments.length >= 2) {
+          state.continuousFresh = false;
+        }
+      }
 
       const source = state.refs.source;
       if (source) {
@@ -2826,6 +4200,17 @@ var ZoteroSelectionTranslator = (function () {
       if (!text) {
         return;
       }
+      if (
+        state.continuousFresh &&
+        state.segments.length < 2 &&
+        !String(state.translation || "").trim()
+      ) {
+        this.setStatus(
+          state,
+          `连续翻译 · 已记录 ${state.segments.length} 段 · 继续划词后合并翻译（也可点 ↻ 立即翻译）`
+        );
+        return;
+      }
       if (!E.isEngineId(state.engineId)) {
         this.showEnginePrompt(state);
         return;
@@ -2848,6 +4233,7 @@ var ZoteroSelectionTranslator = (function () {
         state.translation = result.translation;
         state.speakText = "";
         state.continuousRollback = null;
+        state.continuousFresh = false;
         this.setResult(state, state.translation, result);
         this.updateClearButton(state);
         this.autoSizePanel(state);
@@ -2870,7 +4256,9 @@ var ZoteroSelectionTranslator = (function () {
         if (rollback) {
           state.sourceText = rollback.sourceText;
           state.cleanText = rollback.cleanText;
-          state.segments.pop();
+          state.translation = rollback.translation;
+          state.segments = rollback.segments;
+          state.continuousFresh = rollback.continuousFresh;
           state.continuousRollback = null;
           if (state.refs.source) {
             state.refs.source.textContent = state.sourceText;
@@ -2893,6 +4281,7 @@ var ZoteroSelectionTranslator = (function () {
       state.requestId += 1;
       state.segments = [];
       state.continuousRollback = null;
+      state.continuousFresh = !!state.continuous;
       state.translation = "";
       state.speakText = "";
       state.sourceText = "";
@@ -2918,7 +4307,7 @@ var ZoteroSelectionTranslator = (function () {
     }
 
     togglePin(state) {
-      if (!state || !state.panel) {
+      if (!state || state.destroyed || !state.panel) {
         return;
       }
       if (state.pinned) {
@@ -2932,9 +4321,20 @@ var ZoteroSelectionTranslator = (function () {
     pinPanel(state) {
       const panel = state.panel;
       const doc = state.doc;
-      const win = doc.defaultView;
-      if (!panel.isConnected || !win) {
+      const win = doc && doc.defaultView;
+      if (!panel || !win || !doc.body) {
         return;
+      }
+      // The selection popup can be removed by Zotero between the key press and
+      // this handler. The panel object (and its children) still exist, so
+      // reattach it before pinning.
+      if (!panel.isConnected) {
+        try {
+          doc.body.appendChild(panel);
+        }
+        catch (e) {
+          return;
+        }
       }
       const readerKey = this.readerKey(state.reader);
       const existing = readerKey && this.activePins.get(readerKey);
@@ -3080,6 +4480,7 @@ var ZoteroSelectionTranslator = (function () {
       const panel = state.panel;
       const readerKey = this.readerKey(state.reader);
       state.pinned = false;
+      state.locked = false;
       state.handles.forEach((handle) => handle.remove());
       state.handles = [];
       if (state.themeMedia) {
@@ -3096,6 +4497,14 @@ var ZoteroSelectionTranslator = (function () {
       }
       panel.classList.remove("zst-pinned", "zst-dragging", "zst-resizing", "zst-updated");
       panel.remove();
+      try {
+        if (this.cardStates.get(state.doc) === state) {
+          this.cardStates.delete(state.doc);
+        }
+      }
+      catch (e) {
+        // Ignore a closed document.
+      }
       state.destroyed = true;
       if (readerKey && this.activePins.get(readerKey) === state) {
         this.activePins.delete(readerKey);
@@ -3110,9 +4519,12 @@ var ZoteroSelectionTranslator = (function () {
       pin.textContent = state.pinned ? "关闭置顶" : "置顶";
       pin.classList.toggle("active", !!state.pinned);
       pin.setAttribute("aria-pressed", state.pinned ? "true" : "false");
-      pin.title = state.pinned
-        ? "关闭置顶卡片，恢复划词弹出翻译"
-        : "把翻译框固定在页面上，后续划词会更新此卡片";
+      pin.title = this.shortcutTitle(
+        state.pinned
+          ? "关闭置顶卡片，恢复划词弹出翻译"
+          : "把翻译框固定在页面上，后续划词会更新此卡片",
+        "pin"
+      );
     }
 
     beginDrag(state, event) {
@@ -3367,9 +4779,6 @@ var ZoteroSelectionTranslator = (function () {
     // ----------------------------------------------------------- sidebar tool
 
     onRenderSidebarAnnotationHeader(event) {
-      if (!this.getPref("enabled") || !this.getPref("showSidebarButton")) {
-        return;
-      }
       try {
         const { reader, doc, params, append } = event;
         this.ensureReaderStyles(doc);
@@ -3377,34 +4786,167 @@ var ZoteroSelectionTranslator = (function () {
         if (!annotation || !["highlight", "underline"].includes(annotation.type)) {
           return;
         }
-        if (!annotation.text || !String(annotation.text).trim()) {
-          return;
+        this.removeSidebarButton(doc, annotation);
+        const hasText = !!annotation.text && !!String(annotation.text).trim();
+        if (
+          hasText &&
+          annotation.id &&
+          !isNumericOnly(annotation.text) &&
+          !this.isChineseSource(annotation.text)
+        ) {
+          const target = this.readerButtonTarget(reader);
+          const button = this.createSidebarButton(reader, doc, annotation, append);
+          target.sidebar.set(annotation.id, {
+            doc,
+            annotation,
+            append,
+            reader,
+            button,
+          });
         }
-        // The reader re-runs this event on header re-renders. Remove a
-        // previous button for *this* annotation only, leaving other
-        // annotation buttons alone.
-        if (annotation.id) {
-          const page = doc.getElementById(`page_${annotation.id}`);
-          const header = page && page.closest(".header");
-          if (header) {
-            header.querySelectorAll(".zst-sidebar-btn").forEach((node) => node.remove());
+      }
+      catch (e) {
+        Zotero.logError(e);
+      }
+    }
+
+    removeSidebarButton(doc, annotation) {
+      if (!doc || !annotation || !annotation.id) {
+        return;
+      }
+      try {
+        const page = doc.getElementById(`page_${annotation.id}`);
+        const header = page && page.closest(".header");
+        if (header) {
+          header.querySelectorAll(".zst-sidebar-btn").forEach((node) => node.remove());
+        }
+      }
+      catch (e) {
+        // The header may already be gone.
+      }
+    }
+
+    createSidebarButton(reader, doc, annotation, append) {
+      const button = h(doc, "button", {
+        className: "zst-sidebar-btn",
+        text: "译",
+        attrs: {
+          type: "button",
+          title: "翻译这条标注，并把译文写入评论",
+          "aria-label": "翻译标注并写入评论",
+        },
+      });
+      button.hidden =
+        !this.getPref("enabled") || !this.getPref("showSidebarButton");
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.translateAnnotationIntoComment(reader, annotation, button);
+      });
+      append(button);
+      return button;
+    }
+
+    readerButtonTarget(reader) {
+      const key = this.readerKey(reader) || "default";
+      let target = this.readerButtonTargets.get(key);
+      if (!target) {
+        target = { toolbar: null, sidebar: new Map() };
+        this.readerButtonTargets.set(key, target);
+      }
+      return target;
+    }
+
+    updateToolbarButton(button) {
+      if (!button) {
+        return;
+      }
+      const on = !!this.getPref("autoTranslate");
+      button.hidden = !this.getPref("enabled") || !this.getPref("showToolbarButton");
+      button.classList.toggle("active", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      button.title = on
+        ? "划词翻译：自动翻译已开启（点击关闭）"
+        : "划词翻译：自动翻译已关闭（点击开启）";
+    }
+
+    createToolbarButton(doc, append) {
+      const button = h(doc, "button", {
+        className: "toolbar-button zst-toolbar-btn",
+        text: "译",
+        attrs: { type: "button", "data-zst-toolbar": "1" },
+      });
+      this.updateToolbarButton(button);
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.setPref("autoTranslate", !this.getPref("autoTranslate"));
+        this.syncReaderButtons();
+      });
+      append(button);
+      return button;
+    }
+
+    /**
+     * Keep toolbar / annotation-header buttons in sync with the preference
+     * pane. Re-rendering those reader sections is event-driven, so a settings
+     * toggle must also remove stale buttons immediately and re-create a
+     * missing one from the last known append target.
+     */
+    syncReaderButtons(includeSidebar) {
+      const enabled = !!this.getPref("enabled");
+      const showToolbar = enabled && !!this.getPref("showToolbarButton");
+      const showSidebar = enabled && !!this.getPref("showSidebarButton");
+      try {
+        for (const reader of Zotero.Reader._readers || []) {
+          const doc = reader._iframeWindow && reader._iframeWindow.document;
+          if (!doc || !doc.documentElement) {
+            continue;
+          }
+          const target = this.readerButtonTarget(reader);
+          if (!showToolbar) {
+            doc.querySelectorAll(".zst-toolbar-btn").forEach((node) => {
+              node.hidden = true;
+            });
+          }
+          else {
+            const buttons = doc.querySelectorAll(".zst-toolbar-btn");
+            buttons.forEach((button) => this.updateToolbarButton(button));
+            if (!buttons.length && target.toolbar) {
+              this.createToolbarButton(doc, target.toolbar);
+            }
+          }
+          if (!includeSidebar) {
+            continue;
+          }
+          for (const [id, entry] of Array.from(target.sidebar.entries())) {
+            const { annotation, append, button } = entry;
+            if (!doc.getElementById(`page_${id}`)) {
+              target.sidebar.delete(id);
+              continue;
+            }
+            if (isNumericOnly(annotation.text) || this.isChineseSource(annotation.text)) {
+              this.removeSidebarButton(doc, annotation);
+              target.sidebar.delete(id);
+              continue;
+            }
+            if (!showSidebar) {
+              // Keep the button in the DOM but hidden, so re-enabling the
+              // preference is immediate and cannot leave empty wrapper nodes.
+              if (button && button.isConnected) {
+                button.hidden = true;
+              }
+              continue;
+            }
+            if (button && button.isConnected) {
+              button.hidden = false;
+            }
+            else {
+              const next = this.createSidebarButton(reader, doc, annotation, append);
+              entry.button = next;
+            }
           }
         }
-        const button = h(doc, "button", {
-          className: "zst-sidebar-btn",
-          text: "译",
-          attrs: {
-            type: "button",
-            title: "翻译这条标注，并把译文写入评论",
-            "aria-label": "翻译标注并写入评论",
-          },
-        });
-        button.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this.translateAnnotationIntoComment(reader, annotation, button);
-        });
-        append(button);
       }
       catch (e) {
         Zotero.logError(e);
@@ -3474,36 +5016,18 @@ var ZoteroSelectionTranslator = (function () {
     // --------------------------------------------------------------- toolbar
 
     onRenderToolbar(event) {
-      if (!this.getPref("enabled") || !this.getPref("showToolbarButton")) {
-        return;
-      }
       try {
-        const { doc, append } = event;
+        const { reader, doc, append } = event;
         this.ensureReaderStyles(doc);
         // renderToolbar can fire repeatedly without the custom section being
         // cleared, which previously produced multiple "译" buttons.
         doc.querySelectorAll(".zst-toolbar-btn").forEach((node) => node.remove());
-        const button = h(doc, "button", {
-          className: "toolbar-button zst-toolbar-btn",
-          text: "译",
-          attrs: { type: "button", "data-zst-toolbar": "1" },
-        });
-        const update = () => {
-          const on = !!this.getPref("autoTranslate");
-          button.classList.toggle("active", on);
-          button.setAttribute("aria-pressed", on ? "true" : "false");
-          button.title = on
-            ? "划词翻译：自动翻译已开启（点击关闭）"
-            : "划词翻译：自动翻译已关闭（点击开启）";
-        };
-        update();
-        button.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this.setPref("autoTranslate", !this.getPref("autoTranslate"));
-          update();
-        });
-        append(button);
+        const target = this.readerButtonTarget(reader);
+        target.toolbar = append;
+        // Always keep one button in the toolbar; visibility follows the
+        // preference so enabling the switch again does not depend on a new
+        // renderToolbar event or a stale append target.
+        this.createToolbarButton(doc, append);
       }
       catch (e) {
         Zotero.logError(e);

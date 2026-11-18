@@ -226,13 +226,60 @@ var SelectionTranslatorEngines = (function () {
 
   class HttpError extends Error {
     constructor(status, body, url) {
-      const shortBody = String(body || "").replace(/\s+/g, " ").slice(0, 300);
+      const shortBody = cleanErrorBody(body);
       super(shortBody ? `HTTP ${status}: ${shortBody}` : `HTTP ${status}`);
       this.name = "HttpError";
       this.status = status;
       this.body = body;
       this.url = url;
     }
+  }
+
+  /**
+   * Turn an HTTP error body into one short, human-readable line. Dictionary
+   * pages and other HTML error pages otherwise dump their full source into the
+   * card (including scripts, meta tags and CSS), which is unreadable.
+   */
+  function cleanErrorBody(body) {
+    let raw = String(body == null ? "" : body).trim();
+    if (!raw) {
+      return "";
+    }
+    if (/^\s*</.test(raw)) {
+      let text = "";
+      const title = raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (title) {
+        text = title[1];
+      }
+      if (!text) {
+        text = raw
+          .replace(/<script[\s\S]*?<\/script>/gi, " ")
+          .replace(/<style[\s\S]*?<\/style>/gi, " ")
+          .replace(/<[^>]*>/g, " ");
+      }
+      text = decodeEntities(text).replace(/\s+/g, " ").trim();
+      return (text || "网页返回了错误页面").slice(0, 180);
+    }
+    if (/^\s*[{[]/.test(raw)) {
+      try {
+        const data = JSON.parse(raw);
+        const message = String(
+          data.message ||
+            (data.error && (data.error.message || data.error)) ||
+            data.error_msg ||
+            data.title ||
+            data.detail ||
+            ""
+        ).trim();
+        if (message) {
+          return message.replace(/\s+/g, " ").slice(0, 240);
+        }
+      }
+      catch (e) {
+        // Fall through to a truncated plain string.
+      }
+    }
+    return raw.replace(/\s+/g, " ").slice(0, 240);
   }
 
   function parseJson(text, url) {

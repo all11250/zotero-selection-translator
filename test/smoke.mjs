@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const manifest = JSON.parse(read("src/manifest.json"));
 assert.equal(manifest.manifest_version, 2);
-assert.equal(manifest.version, "1.8.2");
+assert.equal(manifest.version, "1.8.3");
 const zotero = manifest.applications?.zotero;
 assert.ok(zotero, "applications.zotero missing");
 assert.equal(zotero.id, "selection-translator@zotero.local");
@@ -82,8 +82,15 @@ assert.ok(engines.includes("translateDeepSeek"));
 assert.ok(engines.includes("deepseekEndpoint"));
 assert.ok(engines.includes("api.anthropic.com"));
 assert.ok(engines.includes("generativelanguage.googleapis.com"));
+assert.ok(engines.includes("cleanErrorBody"), "HTML error pages must be sanitized");
+assert.ok(
+  !/HttpError[\s\S]{0,200}slice\(0, 300\)/.test(engines),
+  "HTTP errors must not dump raw HTML"
+);
 
 const dictionary = read("src/content/scripts/dictionary.js");
+assert.ok(dictionary.includes("friendlyDictionaryError"));
+assert.ok(dictionary.includes("未收录"));
 for (const source of [
   "cn.bing.com/dict",
   "dict.youdao.com/jsonapi",
@@ -130,6 +137,8 @@ for (const key of [
   "theme",
   "disclaimerCollapsed",
   "engineSelectWidth",
+  "shortcuts",
+  "shortcutsEnabled",
 ]) {
   assert.ok(prefs.includes(`"${key}"`), `missing pref ${key}`);
 }
@@ -167,6 +176,49 @@ assert.ok(
   translate.includes("已清空原内容，连续翻译已开启"),
   "enabling continuous mode must clear existing card content"
 );
+assert.ok(translate.includes("continuousFresh"), "continuous mode must not translate a lone fragment");
+assert.ok(translate.includes("mergeSelectionText"), "continuous selections must be de-duplicated");
+assert.ok(translate.includes("isNumericOnly"), "numeric-only selections must not be translated");
+assert.ok(translate.includes("bypassCache"), "manual refresh must bypass the translation cache");
+assert.ok(translate.includes("更新当前卡片"));
+assert.ok(translate.includes("zst-lock-btn"));
+assert.ok(translate.includes("toggleLock"));
+assert.ok(translate.includes("lockIcon"));
+assert.ok(translate.includes("onStyleInputKeydown"), "Aa row must support arrow-key adjustment");
+assert.ok(translate.includes("ArrowUp"));
+assert.ok(translate.includes("ArrowLeft"));
+assert.ok(translate.includes("↑↓ 调整"));
+assert.ok(css.includes(".zst-style-hint"));
+assert.ok(translate.includes("onPanelWheel"));
+assert.ok(translate.includes("Ctrl 或 ⌘ + 滚轮") || translate.includes("event.ctrlKey"));
+assert.ok(translate.includes("getShortcutActions"));
+assert.ok(translate.includes("setShortcut"));
+assert.ok(translate.includes("resetShortcuts"));
+assert.ok(translate.includes("refreshShortcutTitles"));
+assert.ok(translate.includes("shortcutTitle"));
+assert.ok(translate.includes("切换翻译引擎 / 词典来源"));
+assert.ok(translate.includes('defaultKey: "Shift+Tab"'));
+assert.ok(translate.includes('defaultKey: "Ctrl+Alt+T"'));
+assert.ok(translate.includes("shortcutConflictWarning"));
+assert.ok(translate.includes("shortcutsEnabled"));
+assert.ok(translate.includes("onMainWindowKeydownCapture"));
+assert.ok(translate.includes("installNestedShortcutListeners"));
+assert.ok(translate.includes("findActiveCardState"));
+assert.ok(translate.includes("已保存为默认"));
+assert.ok(translate.includes("mozSystemGroup"), "card shortcuts must run in Gecko's system event group");
+assert.ok(translate.includes("onReaderKeydownCapture"));
+assert.ok(translate.includes("panel.tabIndex = -1"));
+assert.ok(!translate.includes("onReaderDocumentKeydown"), "shortcuts must not be global to the reader");
+assert.ok(translate.includes("stopImmediatePropagation"));
+assert.ok(translate.includes("syncReaderButtons"));
+assert.ok(translate.includes("isChineseSource(annotation.text)"));
+assert.ok(translate.includes("removeSidebarButton"));
+assert.ok(css.includes(".zst-lock-btn"));
+assert.ok(css.includes(".zst-sidebar-btn"));
+assert.ok(css.includes(".zst-sidebar-btn[hidden]"));
+assert.ok(css.includes(".zst-toolbar-btn[hidden]"));
+assert.ok(css.includes(".zst-panel:focus"));
+assert.ok(css.includes("align-self: center"));
 assert.ok(translate.includes("pinByDefault"));
 assert.ok(translate.includes("joinText"));
 assert.ok(translate.includes("dictionaryEnabled"));
@@ -199,6 +251,10 @@ assert.match(chromeFontRule[1], /"SimSun"/);
 assert.match(css, /\.zst-result-title\s*\{[^}]*font-size:\s*12px/);
 assert.match(css, /\.zst-pin-btn,[\s\S]*?font-size:\s*12px/);
 assert.match(css, /\.zst-link-btn\s*\{[^}]*font-size:\s*12px/);
+assert.match(css, /\.zst-foot\s*\{[^}]*flex-wrap:\s*nowrap/);
+assert.match(css, /\.zst-link-btn\s*\{[^}]*flex:\s*0 0 auto[^}]*white-space:\s*nowrap/);
+assert.match(css, /\.zst-status\s*\{[^}]*flex:\s*1 1 0/);
+assert.match(css, /\.zst-status\s*\{[^}]*min-width:\s*28px/);
 assert.ok(css.includes("--zst-panel-bg"));
 assert.ok(css.includes(".zst-status"));
 assert.ok(translate.includes("content/scripts/preferences.js"));
@@ -227,7 +283,15 @@ assert.match(
 );
 
 const prefsXhtml = read("src/content/preferences.xhtml");
-assert.ok(prefsXhtml.includes("zst-clear-cache"));
+assert.ok(prefsXhtml.includes('id="zst-clear-cache"'));
+assert.ok(prefsXhtml.includes('id="zst-shortcuts"'));
+assert.ok(prefsXhtml.includes('id="zst-shortcuts-enabled"'));
+assert.ok(prefsXhtml.includes('id="zst-shortcuts-reset"'));
+assert.ok(prefsXhtml.includes("恢复默认快捷键"));
+assert.ok(preferencesJs.includes("initShortcuts"));
+assert.ok(preferencesJs.includes("已保存"));
+assert.ok(preferencesJs.includes("快捷键"));
+assert.ok(preferencesJs.includes("setShortcut"));
 assert.ok(prefsXhtml.includes('id="zst-disclaimer"'));
 assert.ok(prefsXhtml.includes('id="zst-disclaimer-toggle"'));
 assert.ok(prefsXhtml.includes('id="zst-theme"'));

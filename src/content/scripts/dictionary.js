@@ -252,6 +252,20 @@ var SelectionTranslatorDictionary = (function () {
     return res.text;
   }
 
+  function friendlyDictionaryError(error, word, label) {
+    const status = error && error.status;
+    if (status === 404) {
+      return new Error(`${label}未收录“${word}”`);
+    }
+    if (status === 403) {
+      return new Error(`${label}拒绝了请求（403），请稍后再试或切换来源`);
+    }
+    if (status === 429) {
+      return new Error(`${label}请求过于频繁（429），请稍后再试`);
+    }
+    return error;
+  }
+
   // ------------------------------------------------------------------ Bing
 
   async function lookupBing(ctx) {
@@ -259,10 +273,16 @@ var SelectionTranslatorDictionary = (function () {
     const url = `https://cn.bing.com/dict/search?q=${encodeURIComponent(
       word
     )}&FORM=BDVSP6&mkt=zh-cn`;
-    const html = await requestText(url, {
-      headers: WEB_HEADERS,
-      timeout: 20000,
-    });
+    let html;
+    try {
+      html = await requestText(url, {
+        headers: WEB_HEADERS,
+        timeout: 20000,
+      });
+    }
+    catch (error) {
+      throw friendlyDictionaryError(error, word, "必应词典");
+    }
     const doc = parseHtml(html, ctx.doc);
     const headword =
       textOf(doc.querySelector("#headword h1")) ||
@@ -331,13 +351,19 @@ var SelectionTranslatorDictionary = (function () {
     const url = `https://dict.youdao.com/jsonapi?q=${encodeURIComponent(
       word
     )}&dicts=${dicts}`;
-    const raw = await requestText(url, {
-      headers: Object.assign({}, WEB_HEADERS, {
-        Accept: "application/json,text/plain,*/*",
-        Referer: "https://dict.youdao.com/",
-      }),
-      timeout: 20000,
-    });
+    let raw;
+    try {
+      raw = await requestText(url, {
+        headers: Object.assign({}, WEB_HEADERS, {
+          Accept: "application/json,text/plain,*/*",
+          Referer: "https://dict.youdao.com/",
+        }),
+        timeout: 20000,
+      });
+    }
+    catch (error) {
+      throw friendlyDictionaryError(error, word, "有道词典");
+    }
     const data = E.parseJson(raw, url);
     if (data && data.meta && data.meta.isHasSimpleDict === "0") {
       throw new Error(`有道词典未找到“${word}”的释义`);
@@ -406,10 +432,16 @@ var SelectionTranslatorDictionary = (function () {
     const url = `https://www.oxfordlearnersdictionaries.com/definition/english/${encodeURIComponent(
       word.toLowerCase()
     )}`;
-    const html = await requestText(url, {
-      headers: WEB_HEADERS,
-      timeout: 25000,
-    });
+    let html;
+    try {
+      html = await requestText(url, {
+        headers: WEB_HEADERS,
+        timeout: 25000,
+      });
+    }
+    catch (error) {
+      throw friendlyDictionaryError(error, word, "牛津词典");
+    }
     const doc = parseHtml(html, ctx.doc);
     const headword = textOf(doc.querySelector("h1.headword")) || word;
     const pos = textOf(doc.querySelector(".webtop .pos")) || "释义";
@@ -466,10 +498,16 @@ var SelectionTranslatorDictionary = (function () {
     const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(
       word.toLowerCase()
     )}`;
-    const raw = await requestText(url, {
-      headers: { Accept: "application/json" },
-      timeout: 20000,
-    });
+    let raw;
+    try {
+      raw = await requestText(url, {
+        headers: { Accept: "application/json" },
+        timeout: 20000,
+      });
+    }
+    catch (error) {
+      throw friendlyDictionaryError(error, word, "Free Dictionary ");
+    }
     const data = E.parseJson(raw, url);
     const entry = Array.isArray(data) ? data[0] : null;
     if (!entry) {

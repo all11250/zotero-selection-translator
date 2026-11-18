@@ -1,6 +1,6 @@
 {
   "name": "zotero-selection-translator",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "private": true,
   "description": "Zotero 7+ selection translator with multiple engines, AI APIs, dictionary lookup, themes, and annotation comments.",
   "scripts": {

@@ -188,3 +188,106 @@
   border: 0;
   border-top: 1px solid var(--color-panedivider, rgba(0, 0, 0, 0.12));
 }
+
+/* Keyboard-shortcut editor. */
+.zst-shortcuts {
+  max-width: 760px;
+  margin: 4px 0 8px;
+  border: 1px solid var(--color-panedivider, rgba(0, 0, 0, 0.12));
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.zst-shortcuts.zst-shortcuts-disabled {
+  opacity: 0.5;
+}
+
+.zst-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--color-panedivider, rgba(0, 0, 0, 0.08));
+  font-size: 12px;
+}
+
+.zst-shortcut-row:last-child {
+  border-bottom: 0;
+}
+
+.zst-shortcut-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--fill-primary, #222);
+}
+
+.zst-shortcut-input {
+  flex: 0 0 156px;
+  width: 156px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-panedivider, rgba(0, 0, 0, 0.2));
+  border-radius: 4px;
+  background: var(--material-background, #fff);
+  color: var(--fill-primary, #222);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  text-align: center;
+}
+
+.zst-shortcut-input:focus {
+  outline: 2px solid var(--zst-accent, #2563eb);
+  outline-offset: 1px;
+}
+
+.zst-shortcut-input.zst-shortcut-conflict {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.zst-shortcut-default {
+  flex: 0 0 auto;
+  min-width: 72px;
+  color: var(--fill-secondary, #666);
+  font-size: 11px;
+  text-align: right;
+}
+
+.zst-shortcut-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 760px;
+}
+
+.zst-shortcut-actions button {
+  padding: 3px 12px;
+  border: 1px solid var(--color-panedivider, rgba(0, 0, 0, 0.2));
+  border-radius: 5px;
+  background: var(--material-toolbar, #f5f5f5);
+  color: var(--fill-primary, #222);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.zst-shortcut-actions button:hover {
+  border-color: var(--zst-accent, #2563eb);
+}
+
+.zst-shortcut-status {
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--fill-secondary, #666);
+}
+
+.zst-shortcut-status.ok {
+  color: #15803d;
+}
+
+.zst-shortcut-status.err {
+  color: #dc2626;
+}
+
+.zst-shortcut-status.warn {
+  color: #b45309;
+}
