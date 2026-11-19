@@ -3,6 +3,17 @@
     "selection-translator@zotero.local": {
       "updates": [
         {
+          "version": "1.8.3.1",
+          "update_link": "https://github.com/all11250/zotero-selection-translator/releases/download/v1.8.3.1/zotero-selection-translator-1.8.3.1.xpi",
+          "update_hash": "sha512:a35fa045fd22918669e4869ff6b2c7c8f55e543cf41b91d0e25366330e687e7d7f87b3396d66d2bff79bc063eb61ba49c1dbc15a9992f71166e69dae180efab2",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "7.0",
+              "strict_max_version": "10.*"
+            }
+          }
+        },
+        {
           "version": "1.8.2",
           "update_link": "https://github.com/all11250/zotero-selection-translator/releases/download/v1.8.2/zotero-selection-translator-1.8.2.xpi",
           "update_hash": "sha512:714c8e232af059d4ede2a2066c069c754260b10a52984061d85915e221f1212ae7de67f7409c312beb66fc4c7a5f9ecd4422450e594659097fe4177d211c499c",

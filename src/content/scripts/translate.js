@@ -4355,6 +4355,11 @@ var ZoteroSelectionTranslator = (function () {
 
       doc.body.appendChild(panel);
       panel.classList.add("zst-pinned");
+      if (state.refs.result) {
+        // A previously unpinned card may carry an inline max-height from auto
+        // sizing. Clear it so the result area can use the full pinned card.
+        state.refs.result.style.maxHeight = "none";
+      }
       panel.style.position = "fixed";
       panel.style.left = `${left}px`;
       panel.style.top = `${top}px`;
@@ -4444,6 +4449,11 @@ var ZoteroSelectionTranslator = (function () {
       if (state.pinned) {
         panel.style.width = `${desiredWidth}px`;
         const result = refs.result;
+        if (result) {
+          // Remove the popup-only max-height; the pinned result flexes to
+          // fill the card instead of becoming a small nested scroll box.
+          result.style.maxHeight = "none";
+        }
         const desiredHeight = Math.max(
           200,
           Math.min(

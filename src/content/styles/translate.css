@@ -864,7 +864,7 @@
 .zst-panel.zst-pinned .zst-result {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: none;
+  max-height: none !important;
 }
 
 /* Invisible resize hit zones. There is deliberately no visual indicator:
